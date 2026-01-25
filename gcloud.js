@@ -44,13 +44,8 @@ export function storeTokens(tokens) {
 }
 
 export async function openBrowser(url) {
-  return new Promise((resolve, reject) => {
-    const cmd = process.platform === 'darwin' ? 'open' :
-                process.platform === 'win32' ? 'start' : 'xdg-open';
-    const proc = spawn(cmd, [url], { stdio: 'ignore' });
-    proc.on('error', reject);
-    setTimeout(resolve, 1000);
-  });
+  console.log(`\n🔗 Open this URL in your browser:\n${url}\n`);
+  return Promise.resolve();
 }
 
 export function parseAuthCode(callbackUrl) {

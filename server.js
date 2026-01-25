@@ -48,8 +48,15 @@ const auth = createAuthMiddleware(CONFIG.jwt_secret);
 app.use(express.json({ limit: '10mb' }));
 app.use(cors());
 
-app.get('/oauth/authorize', (req, res) => {
-  const authUrl = oauth2Client.generateAuthUrl({
+app.get('/oauth/authorize', async (req, res) => {
+  const redirectUri = req.query.redirect_uri || CONFIG.oauth_redirect_url;
+  const { OAuth2Client } = await import('google-auth-library');
+  const tempClient = new OAuth2Client(
+    CONFIG.oauth_client_id,
+    CONFIG.oauth_client_secret,
+    redirectUri
+  );
+  const authUrl = tempClient.generateAuthUrl({
     access_type: 'offline',
     scope: CONFIG.scopes,
     prompt: 'consent'

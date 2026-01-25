@@ -6,7 +6,7 @@ export function createOAuthClient(config) {
   return new OAuth2Client(
     config.oauth_client_id,
     config.oauth_client_secret,
-    config.oauth_redirect_url
+    'http://localhost/oauth/callback'
   );
 }
 

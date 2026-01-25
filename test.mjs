@@ -121,6 +121,7 @@ export async function start(opts = {}) {
       server.listen(0, '127.0.0.1', async () => {
         state.port = server.address().port;
         state.server = server;
+        state.config.oauth_redirect_url = `http://127.0.0.1:${state.port}/oauth/callback`;
         console.log(`✓ Server listening on http://127.0.0.1:${state.port}`);
 
         await new Promise(r => setTimeout(r, 100));
@@ -135,11 +136,12 @@ export async function start(opts = {}) {
         console.log('\nStarting OAuth flow...\n');
 
         try {
-          const authRes = await fetch(`http://127.0.0.1:${state.port}/oauth/authorize`);
+          const redirectUri = encodeURIComponent(`http://127.0.0.1:${state.port}/oauth/callback`);
+          const authRes = await fetch(`http://127.0.0.1:${state.port}/oauth/authorize?redirect_uri=${redirectUri}`);
           const { auth_url } = await authRes.json();
 
           console.log('Opening browser for authorization...\n');
-          console.log(`📱 Auth URL: ${auth_url.substring(0, 50)}...\n`);
+          await openBrowser(auth_url);
 
           console.log('Waiting for authorization code...\n');
 

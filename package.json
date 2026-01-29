@@ -5,8 +5,8 @@
   "type": "module",
   "main": "stdio-server.js",
   "bin": {
-    "docmcp": "stdio-server.js",
-    "docmcp-test": "bin/docmcp-test.mjs"
+    "docmcp": "cli.js",
+    "docmcp-mcp": "stdio-server.js"
   },
   "engines": {
     "node": ">=20.0.0",

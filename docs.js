@@ -89,6 +89,14 @@ export async function editDocument(auth, docId, oldText, newText, replaceAll = f
   return { replacements: indices.length };
 }
 
+export async function createDocument(auth, title) {
+  const docs = google.docs({ version: 'v1', auth });
+  const result = await docs.documents.create({
+    requestBody: { title }
+  });
+  return { docId: result.data.documentId, title: result.data.title };
+}
+
 export async function insertDocument(auth, docId, text, position = 'end') {
   const docs = google.docs({ version: 'v1', auth });
   const doc = await docs.documents.get({ documentId: docId });

@@ -62,9 +62,11 @@ async function main() {
 Commands:
   skill                     Print full usage instructions
   auth login                Authenticate with Google
+  docs create <title>       Create a new document
   docs read <id>            Read document content
   docs edit <id>            Edit document (--old, --new, --replace-all)
   docs insert <id>          Insert text (--text, --position/--after/--index)
+  sheets create <title>     Create a new spreadsheet
   sheets read <id> [range]  Read sheet range
   sheets edit <id> <range>  Update range (--values)
   sheets insert <id>        Append rows (--values)
@@ -96,6 +98,19 @@ Run 'docmcp skill' for detailed documentation.`);
 
   if (cmd === 'docs') {
     const sub = args[1];
+    const auth = getAuth();
+
+    if (sub === 'create') {
+      const title = args[2];
+      if (!title) {
+        console.error('Error: title required');
+        process.exit(1);
+      }
+      const result = await docs.createDocument(auth, title);
+      console.log(`Created document "${result.title}" with ID: ${result.docId}`);
+      return;
+    }
+
     const docId = args[2];
     const opts = parseArgs(args.slice(3));
 
@@ -103,8 +118,6 @@ Run 'docmcp skill' for detailed documentation.`);
       console.error('Error: doc_id required');
       process.exit(1);
     }
-
-    const auth = getAuth();
 
     if (sub === 'read') {
       const content = await docs.readDocument(auth, docId);
@@ -142,14 +155,25 @@ Run 'docmcp skill' for detailed documentation.`);
 
   if (cmd === 'sheets') {
     const sub = args[1];
+    const auth = getAuth();
+
+    if (sub === 'create') {
+      const title = args[2];
+      if (!title) {
+        console.error('Error: title required');
+        process.exit(1);
+      }
+      const result = await sheets.createSheet(auth, title);
+      console.log(`Created spreadsheet "${result.title}" with ID: ${result.sheetId}`);
+      return;
+    }
+
     const sheetId = args[2];
 
     if (!sheetId) {
       console.error('Error: sheet_id required');
       process.exit(1);
     }
-
-    const auth = getAuth();
 
     if (sub === 'read') {
       const range = args[3] || 'Sheet1';

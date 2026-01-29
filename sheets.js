@@ -1,5 +1,13 @@
 import { google } from 'googleapis';
 
+export async function createSheet(auth, title) {
+  const sheets = google.sheets({ version: 'v4', auth });
+  const result = await sheets.spreadsheets.create({
+    requestBody: { properties: { title } }
+  });
+  return { sheetId: result.data.spreadsheetId, title: result.data.properties.title };
+}
+
 export async function readSheet(auth, sheetId, range = 'Sheet1') {
   const sheets = google.sheets({ version: 'v4', auth });
   const result = await sheets.spreadsheets.values.get({

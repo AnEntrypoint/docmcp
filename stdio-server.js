@@ -38,6 +38,17 @@ function getAuth() {
 
 const TOOLS = [
   {
+    name: 'docs_create',
+    description: 'Create a new Google Doc with the specified title. Returns the document ID and title.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Title for the new document' }
+      },
+      required: ['title']
+    }
+  },
+  {
     name: 'docs_read',
     description: 'Read the full text content of a Google Doc. Returns the complete document text.',
     inputSchema: {
@@ -86,6 +97,17 @@ const TOOLS = [
         }
       },
       required: ['doc_id', 'text']
+    }
+  },
+  {
+    name: 'sheets_create',
+    description: 'Create a new Google Sheet with the specified title. Returns the spreadsheet ID and title.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Title for the new spreadsheet' }
+      },
+      required: ['title']
     }
   },
   {
@@ -201,6 +223,15 @@ async function handleToolCall(name, args) {
   const auth = getAuth();
 
   switch (name) {
+    case 'docs_create': {
+      const result = await docs.createDocument(auth, args.title);
+      return {
+        content: [{
+          type: 'text',
+          text: `Created document "${result.title}" with ID: ${result.docId}`
+        }]
+      };
+    }
     case 'docs_read': {
       const content = await docs.readDocument(auth, args.doc_id);
       return { content: [{ type: 'text', text: content }] };
@@ -221,6 +252,15 @@ async function handleToolCall(name, args) {
     case 'docs_insert': {
       await docs.insertDocument(auth, args.doc_id, args.text, args.position || 'end');
       return { content: [{ type: 'text', text: `Inserted text into document ${args.doc_id}` }] };
+    }
+    case 'sheets_create': {
+      const result = await sheets.createSheet(auth, args.title);
+      return {
+        content: [{
+          type: 'text',
+          text: `Created spreadsheet "${result.title}" with ID: ${result.sheetId}`
+        }]
+      };
     }
     case 'sheets_read': {
       const values = await sheets.readSheet(auth, args.sheet_id, args.range || 'Sheet1');

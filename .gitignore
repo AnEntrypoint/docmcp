@@ -25,3 +25,5 @@ service-account*.json
 .python-version
 .glootie-stop-verified
 .prd
+
+.code-search/

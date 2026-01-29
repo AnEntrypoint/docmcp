@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "Google Docs/Sheets MCP Server with OAuth login",
   "type": "module",
-  "main": "server.js",
+  "main": "stdio-server.js",
   "bin": {
+    "docmcp": "stdio-server.js",
     "docmcp-test": "bin/docmcp-test.mjs"
   },
   "engines": {
@@ -12,7 +13,8 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "start": "node server.js",
+    "start": "node stdio-server.js",
+    "start:http": "node server.js",
     "dev": "NODE_ENV=development node server.js",
     "test": "node test.mjs"
   },

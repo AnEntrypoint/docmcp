@@ -34,6 +34,32 @@ npx docmcp auth login
 
 Opens browser for Google OAuth. Tokens stored at `~/.config/gcloud/docmcp/token.json`.
 
+### Re-Authentication
+
+To re-authenticate or refresh credentials:
+
+```bash
+export GOOGLE_OAUTH_CLIENT_ID="your-client-id"
+export GOOGLE_OAUTH_CLIENT_SECRET="your-client-secret"
+npx docmcp auth login
+```
+
+This will start a new OAuth flow and replace the old tokens with fresh ones.
+
+### Token Status
+
+Check current authentication status:
+
+```bash
+npx docmcp auth status
+```
+
+Shows expiry date and scopes of current token.
+
+### Automatic Token Refresh
+
+The library automatically refreshes expired tokens using the refresh token. No manual action needed when tokens expire, as long as the refresh token is valid.
+
 ## MCP Server Usage
 
 Add to Claude Desktop or other MCP clients:
@@ -146,6 +172,68 @@ Edit tools match Claude Edit tool behavior:
 2. Exact matching including whitespace and punctuation
 3. Clear errors when text not found or multiple matches
 4. Replacement count in success response
+
+## Re-Authentication Reference
+
+### Architecture
+
+OAuth 2.0 with Google. Tokens stored at `~/.config/gcloud/docmcp/token.json` with 0o600 permissions.
+
+Token file contains: access_token, refresh_token, scope, token_type, expiry_date, client_id, client_secret.
+
+### How to Re-Authenticate
+
+```bash
+export GOOGLE_OAUTH_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+export GOOGLE_OAUTH_CLIENT_SECRET="your-client-secret"
+npx docmcp auth login
+```
+
+Launches browser OAuth flow. Opens on localhost:9998. Replaces old tokens with new ones.
+
+### Alternative: Direct Code Exchange
+
+```bash
+npx docmcp auth exchange CODE_HERE http://localhost:9998/callback
+```
+
+### Validation
+
+Check status:
+```bash
+npx docmcp auth status
+```
+
+Test API access:
+```bash
+npx docmcp docs create "Test Document"
+```
+
+### Token Refresh
+
+Automatic. Library uses refresh_token to obtain new access_token when expired. No manual action needed.
+
+If refresh fails, run auth login again.
+
+### Troubleshooting
+
+- "No tokens found" → Run auth login first
+- "Invalid token" → Token expired and refresh failed. Re-authenticate.
+- Port 9998 in use → Kill process: `lsof -ti :9998 | xargs kill -9`
+- Browser doesn't open → Copy auth URL from console manually
+- Missing credentials → Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars
+
+### Implementation Details
+
+CLI: `/config/docmcp/cli.js` lines 88-176 (login flow)
+OAuth: `/config/docmcp/oauth.js` (OAuth2Client, token refresh)
+Auth Routes: `/config/docmcp/auth-routes.js` (HTTP endpoints)
+Server: `/config/docmcp/server.js` (Express endpoints)
+Conversational: `/config/docmcp/conversational-auth.js` (Interactive auth)
+
+### Verified Working
+
+Tested with real Google APIs. Token auto-refresh works. Document creation succeeds after refresh.
 
 ## License
 

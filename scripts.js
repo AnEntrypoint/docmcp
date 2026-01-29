@@ -237,7 +237,8 @@ export async function runScript(auth, sheetId, scriptIdentifier, functionName, p
     scriptId: scriptEntry.scriptId,
     requestBody: {
       function: functionName,
-      parameters
+      parameters,
+      devMode: true
     }
   });
 

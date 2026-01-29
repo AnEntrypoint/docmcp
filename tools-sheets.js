@@ -102,6 +102,17 @@ export const SCRIPTS_TOOLS = [
       },
       required: ['sheet_id', 'script', 'function_name']
     }
+  },
+  {
+    name: 'scripts_sync',
+    description: 'verify all tracked scripts exist and remove stale entries',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sheet_id: { type: 'string', description: 'Google Sheet ID' }
+      },
+      required: ['sheet_id']
+    }
   }
 ];
 

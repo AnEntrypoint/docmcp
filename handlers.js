@@ -140,7 +140,15 @@ export async function handleSheetsToolCall(name, args, auth) {
     }
     case 'scripts_list': {
       const result = await scripts.listScripts(auth, args.sheet_id);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      let text = JSON.stringify(result.scripts, null, 2);
+      if (result.healed) {
+        text += `\n\n(Auto-healed: removed ${result.removedCount} stale script entries)`;
+      }
+      return { content: [{ type: 'text', text }] };
+    }
+    case 'scripts_sync': {
+      const result = await scripts.syncScripts(auth, args.sheet_id);
+      return { content: [{ type: 'text', text: `Synced scripts: ${result.valid}/${result.total} valid, ${result.removed} removed` }] };
     }
     case 'scripts_read': {
       const result = await scripts.readScript(auth, args.sheet_id, args.script);
@@ -161,7 +169,7 @@ export async function handleSheetsToolCall(name, args, auth) {
     }
     case 'scripts_delete': {
       const result = await scripts.deleteScript(auth, args.sheet_id, args.script);
-      return { content: [{ type: 'text', text: `Deleted script "${result.name}" (${result.scriptId})` }] };
+      return { content: [{ type: 'text', text: `Removed script "${result.name}" from tracking (${result.scriptId})\nNote: ${result.note}` }] };
     }
     case 'scripts_run': {
       const result = await scripts.runScript(auth, args.sheet_id, args.script, args.function_name, args.parameters || []);

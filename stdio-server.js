@@ -39,7 +39,7 @@ function getAuth() {
 const TOOLS = [
   {
     name: 'docs_read',
-    description: 'Read the full text content of a Google Doc',
+    description: 'Read the full text content of a Google Doc. Returns the complete document text.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -50,20 +50,28 @@ const TOOLS = [
   },
   {
     name: 'docs_edit',
-    description: 'Replace text in a Google Doc (old_text must appear exactly once)',
+    description: 'Performs exact string replacement in a Google Doc. ' +
+      'The old_text must be unique in the document unless replace_all is true. ' +
+      'If old_text appears multiple times and replace_all is false, the edit will fail.',
     inputSchema: {
       type: 'object',
       properties: {
         doc_id: { type: 'string', description: 'Google Doc ID' },
-        old_text: { type: 'string', description: 'Text to find and replace' },
-        new_text: { type: 'string', description: 'Replacement text' }
+        old_text: { type: 'string', description: 'The exact text to find and replace' },
+        new_text: { type: 'string', description: 'The text to replace it with' },
+        replace_all: {
+          type: 'boolean',
+          description: 'Replace all occurrences of old_text (default: false)',
+          default: false
+        }
       },
       required: ['doc_id', 'old_text', 'new_text']
     }
   },
   {
     name: 'docs_insert',
-    description: 'Insert text into a Google Doc at a position',
+    description: 'Insert text into a Google Doc at a specified position. ' +
+      'Position can be "end" to append, a character index, or text to insert after.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -74,7 +82,7 @@ const TOOLS = [
             { type: 'string', description: '"end" or text to insert after' },
             { type: 'number', description: 'Character index' }
           ],
-          description: 'Where to insert (default: "end")'
+          description: 'Where to insert: "end", character index, or text to insert after (default: "end")'
         }
       },
       required: ['doc_id', 'text']
@@ -82,7 +90,7 @@ const TOOLS = [
   },
   {
     name: 'sheets_read',
-    description: 'Read values from a Google Sheet range',
+    description: 'Read values from a Google Sheet range. Returns a 2D array of cell values.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -94,7 +102,7 @@ const TOOLS = [
   },
   {
     name: 'sheets_edit',
-    description: 'Update values in a Google Sheet range',
+    description: 'Update values in a Google Sheet range. Overwrites the specified range with new values.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -111,7 +119,7 @@ const TOOLS = [
   },
   {
     name: 'sheets_insert',
-    description: 'Append rows to a Google Sheet',
+    description: 'Append rows to a Google Sheet after existing data.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -128,7 +136,7 @@ const TOOLS = [
   },
   {
     name: 'sheets_get_cell',
-    description: 'Get a single cell value from a Google Sheet',
+    description: 'Get a single cell value from a Google Sheet.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -140,7 +148,7 @@ const TOOLS = [
   },
   {
     name: 'sheets_set_cell',
-    description: 'Set a single cell value in a Google Sheet',
+    description: 'Set a single cell value in a Google Sheet. Completely replaces the cell content.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -152,15 +160,37 @@ const TOOLS = [
     }
   },
   {
+    name: 'sheets_edit_cell',
+    description: 'Performs exact string replacement within a cell. ' +
+      'The old_text must be unique within the cell unless replace_all is true. ' +
+      'If old_text appears multiple times in the cell and replace_all is false, the edit will fail.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sheet_id: { type: 'string', description: 'Google Sheet ID' },
+        cell: { type: 'string', description: 'Cell reference (e.g. "A1", "Sheet1!B2")' },
+        old_text: { type: 'string', description: 'The exact text to find and replace' },
+        new_text: { type: 'string', description: 'The text to replace it with' },
+        replace_all: {
+          type: 'boolean',
+          description: 'Replace all occurrences of old_text (default: false)',
+          default: false
+        }
+      },
+      required: ['sheet_id', 'cell', 'old_text', 'new_text']
+    }
+  },
+  {
     name: 'sheets_find_replace',
-    description: 'Find and replace text across a Google Sheet',
+    description: 'Find and replace text across ALL matching cells in a Google Sheet. ' +
+      'Unlike sheets_edit_cell, this replaces ALL occurrences across the entire sheet.',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
         find: { type: 'string', description: 'Text to find' },
         replace: { type: 'string', description: 'Replacement text' },
-        sheet_name: { type: 'string', description: 'Specific sheet tab name (optional, searches all if omitted)' }
+        sheet_name: { type: 'string', description: 'Specific sheet tab name (optional, searches all tabs if omitted)' }
       },
       required: ['sheet_id', 'find', 'replace']
     }
@@ -176,12 +206,21 @@ async function handleToolCall(name, args) {
       return { content: [{ type: 'text', text: content }] };
     }
     case 'docs_edit': {
-      await docs.editDocument(auth, args.doc_id, args.old_text, args.new_text);
-      return { content: [{ type: 'text', text: `Replaced text in ${args.doc_id}` }] };
+      const result = await docs.editDocument(
+        auth,
+        args.doc_id,
+        args.old_text,
+        args.new_text,
+        args.replace_all || false
+      );
+      const msg = result.replacements === 1
+        ? `Replaced 1 occurrence in document ${args.doc_id}`
+        : `Replaced ${result.replacements} occurrences in document ${args.doc_id}`;
+      return { content: [{ type: 'text', text: msg }] };
     }
     case 'docs_insert': {
       await docs.insertDocument(auth, args.doc_id, args.text, args.position || 'end');
-      return { content: [{ type: 'text', text: `Inserted text into ${args.doc_id}` }] };
+      return { content: [{ type: 'text', text: `Inserted text into document ${args.doc_id}` }] };
     }
     case 'sheets_read': {
       const values = await sheets.readSheet(auth, args.sheet_id, args.range || 'Sheet1');
@@ -189,11 +228,11 @@ async function handleToolCall(name, args) {
     }
     case 'sheets_edit': {
       await sheets.editSheet(auth, args.sheet_id, args.range, args.values);
-      return { content: [{ type: 'text', text: `Updated ${args.range} in ${args.sheet_id}` }] };
+      return { content: [{ type: 'text', text: `Updated range ${args.range} in sheet ${args.sheet_id}` }] };
     }
     case 'sheets_insert': {
       await sheets.insertSheet(auth, args.sheet_id, args.range || 'Sheet1', args.values);
-      return { content: [{ type: 'text', text: `Appended rows to ${args.sheet_id}` }] };
+      return { content: [{ type: 'text', text: `Appended rows to sheet ${args.sheet_id}` }] };
     }
     case 'sheets_get_cell': {
       const value = await sheets.getCell(auth, args.sheet_id, args.cell);
@@ -201,11 +240,36 @@ async function handleToolCall(name, args) {
     }
     case 'sheets_set_cell': {
       await sheets.setCell(auth, args.sheet_id, args.cell, args.value);
-      return { content: [{ type: 'text', text: `Set ${args.cell} in ${args.sheet_id}` }] };
+      return { content: [{ type: 'text', text: `Set cell ${args.cell} in sheet ${args.sheet_id}` }] };
+    }
+    case 'sheets_edit_cell': {
+      const result = await sheets.editCell(
+        auth,
+        args.sheet_id,
+        args.cell,
+        args.old_text,
+        args.new_text,
+        args.replace_all || false
+      );
+      const msg = result.replacements === 1
+        ? `Replaced 1 occurrence in cell ${args.cell}`
+        : `Replaced ${result.replacements} occurrences in cell ${args.cell}`;
+      return { content: [{ type: 'text', text: msg }] };
     }
     case 'sheets_find_replace': {
-      await sheets.findReplace(auth, args.sheet_id, args.find, args.replace, args.sheet_name || null);
-      return { content: [{ type: 'text', text: `Replaced "${args.find}" with "${args.replace}" in ${args.sheet_id}` }] };
+      const result = await sheets.findReplace(
+        auth,
+        args.sheet_id,
+        args.find,
+        args.replace,
+        args.sheet_name || null
+      );
+      return {
+        content: [{
+          type: 'text',
+          text: `Replaced ${result.replacements} occurrences of "${args.find}" with "${args.replace}" in sheet ${args.sheet_id}`
+        }]
+      };
     }
     default:
       throw new Error(`Unknown tool: ${name}`);

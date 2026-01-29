@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { OAuth2Client } from 'google-auth-library';
 import os from 'os';
 import * as docs from './docs.js';
 import * as sheets from './sheets.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOKEN_FILE = path.join(os.homedir(), '.config', 'gcloud', 'docmcp', 'token.json');
 
 function loadTokens() {
@@ -60,8 +58,8 @@ async function main() {
     console.log(`docmcp - Google Docs & Sheets CLI
 
 Commands:
-  skill                     Print full usage instructions
   auth login                Authenticate with Google
+  auth status               Check authentication status
   docs create <title>       Create a new document
   docs read <id>            Read document content
   docs edit <id>            Edit document (--old, --new, --replace-all)
@@ -73,15 +71,7 @@ Commands:
   sheets cell get <id> <cell>
   sheets cell set <id> <cell> <value>
   sheets cell edit <id> <cell>  Edit cell text (--old, --new, --replace-all)
-  sheets find-replace <id>  Find/replace across sheet (--find, --replace, --sheet)
-
-Run 'docmcp skill' for detailed documentation.`);
-    return;
-  }
-
-  if (cmd === 'skill') {
-    const skillPath = path.join(__dirname, 'src', 'skill.md');
-    console.log(fs.readFileSync(skillPath, 'utf8'));
+  sheets find-replace <id>  Find/replace across sheet (--find, --replace, --sheet)`);
     return;
   }
 

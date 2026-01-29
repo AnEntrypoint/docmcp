@@ -3,10 +3,13 @@ import cors from 'cors';
 import winston from 'winston';
 import { google } from 'googleapis';
 import jwt from 'jsonwebtoken';
+import { loadEnv } from './env-loader.js';
 import { createOAuthClient, createAuthMiddleware, handleOAuthCallback, refreshToken } from './oauth.js';
 import { ConversationalAuth } from './conversational-auth.js';
 import { setupAuthRoutes } from './auth-routes.js';
 import { setupMcpRoutes } from './mcp-routes.js';
+
+loadEnv();
 
 const app = express();
 const PORT = process.env.PORT || 9998;

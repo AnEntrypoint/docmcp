@@ -16,6 +16,7 @@
     "start": "node stdio-server.js",
     "start:http": "node server.js",
     "dev": "NODE_ENV=development node server.js",
+    "setup:oauth": "node setup-oauth.js",
     "test": "node test.mjs"
   },
   "dependencies": {

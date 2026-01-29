@@ -10,6 +10,19 @@ export async function handleDocsToolCall(name, args, auth) {
       const result = await sections.getSections(auth, args.doc_id);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
+    case 'docs_section': {
+      if (args.action === 'delete') {
+        const result = await sections.deleteSection(auth, args.doc_id, args.section);
+        return { content: [{ type: 'text', text: `Deleted section "${result.deleted}"` }] };
+      } else if (args.action === 'move') {
+        const result = await sections.moveSection(auth, args.doc_id, args.section, args.target);
+        return { content: [{ type: 'text', text: `Moved section "${result.moved}"` }] };
+      } else if (args.action === 'replace') {
+        const result = await sections.replaceSection(auth, args.doc_id, args.section, args.content, args.preserve_heading !== false);
+        return { content: [{ type: 'text', text: `Replaced section "${result.replaced}" (heading preserved: ${result.preservedHeading})` }] };
+      }
+      throw new Error(`Unknown section action: ${args.action}`);
+    }
     case 'docs_delete_section': {
       const result = await sections.deleteSection(auth, args.doc_id, args.section);
       return { content: [{ type: 'text', text: `Deleted section "${result.deleted}"` }] };
@@ -21,6 +34,22 @@ export async function handleDocsToolCall(name, args, auth) {
     case 'docs_replace_section': {
       const result = await sections.replaceSection(auth, args.doc_id, args.section, args.content, args.preserve_heading !== false);
       return { content: [{ type: 'text', text: `Replaced section "${result.replaced}" (heading preserved: ${result.preservedHeading})` }] };
+    }
+    case 'docs_image': {
+      if (args.action === 'insert') {
+        const result = await media.insertImage(auth, args.doc_id, args.image_url, args.position || 'end', args.width, args.height);
+        return { content: [{ type: 'text', text: `Inserted image at index ${result.index}` }] };
+      } else if (args.action === 'list') {
+        const result = await media.listImages(auth, args.doc_id);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } else if (args.action === 'delete') {
+        const result = await media.deleteImage(auth, args.doc_id, args.image_index);
+        return { content: [{ type: 'text', text: `Deleted image at index ${result.imageIndex}` }] };
+      } else if (args.action === 'replace') {
+        const result = await media.replaceImage(auth, args.doc_id, args.image_index, args.image_url, args.width, args.height);
+        return { content: [{ type: 'text', text: `Replaced image at index ${result.imageIndex}` }] };
+      }
+      throw new Error(`Unknown image action: ${args.action}`);
     }
     case 'docs_insert_image': {
       const result = await media.insertImage(auth, args.doc_id, args.image_url, args.position || 'end', args.width, args.height);
@@ -113,13 +142,18 @@ export async function handleSheetsToolCall(name, args, auth) {
       const result = await scripts.readScript(auth, args.sheet_id, args.script);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
+    case 'scripts_write': {
+      if (args.mode === 'edit') {
+        const result = await scripts.editScript(auth, args.sheet_id, args.script, args.file_name, args.old_text, args.new_text, args.replace_all || false);
+        return { content: [{ type: 'text', text: `Replaced ${result.replacements} occurrence(s) in ${result.file}` }] };
+      } else {
+        const result = await scripts.writeScript(auth, args.sheet_id, args.script, args.file_name, args.content, args.file_type || 'SERVER_JS');
+        return { content: [{ type: 'text', text: `Wrote file "${result.file}" (${result.isNew ? 'created' : 'updated'})` }] };
+      }
+    }
     case 'scripts_edit': {
       const result = await scripts.editScript(auth, args.sheet_id, args.script, args.file_name, args.old_text, args.new_text, args.replace_all || false);
       return { content: [{ type: 'text', text: `Replaced ${result.replacements} occurrence(s) in ${result.file}` }] };
-    }
-    case 'scripts_write': {
-      const result = await scripts.writeScript(auth, args.sheet_id, args.script, args.file_name, args.content, args.file_type || 'SERVER_JS');
-      return { content: [{ type: 'text', text: `Wrote file "${result.file}" (${result.isNew ? 'created' : 'updated'})` }] };
     }
     case 'scripts_delete': {
       const result = await scripts.deleteScript(auth, args.sheet_id, args.script);
@@ -169,6 +203,19 @@ export async function handleSheetsToolCall(name, args, auth) {
       const sheetsList = await sheets.listSpreadsheets(auth, args.max_results || 20, args.query || null);
       return { content: [{ type: 'text', text: JSON.stringify(sheetsList, null, 2) }] };
     }
+    case 'sheets_tab': {
+      if (args.action === 'add') {
+        const result = await sheets.addSheetTab(auth, args.sheet_id, args.title);
+        return { content: [{ type: 'text', text: `Added sheet tab "${result.title}" with ID: ${result.sheetId}` }] };
+      } else if (args.action === 'delete') {
+        const result = await sheets.deleteSheetTab(auth, args.sheet_id, args.sheet_name);
+        return { content: [{ type: 'text', text: `Deleted sheet tab "${result.deleted}"` }] };
+      } else if (args.action === 'rename') {
+        const result = await sheets.renameSheetTab(auth, args.sheet_id, args.sheet_name, args.title);
+        return { content: [{ type: 'text', text: `Renamed sheet tab "${result.oldName}" to "${result.newName}"` }] };
+      }
+      throw new Error(`Unknown tab action: ${args.action}`);
+    }
     case 'sheets_add_sheet': {
       const result = await sheets.addSheetTab(auth, args.sheet_id, args.title);
       return { content: [{ type: 'text', text: `Added sheet tab "${result.title}" with ID: ${result.sheetId}` }] };
@@ -202,7 +249,11 @@ export async function handleSheetsToolCall(name, args, auth) {
       return { content: [{ type: 'text', text: `Formatted range ${result.formatted}` }] };
     }
     case 'sheets_merge': {
-      const result = await sheets.mergeCells(auth, args.sheet_id, args.range);
+      const action = args.action || 'merge';
+      const result = await sheets.mergeCells(auth, args.sheet_id, args.range, action);
+      if (action === 'unmerge') {
+        return { content: [{ type: 'text', text: `Unmerged cells in range ${result.unmerged}` }] };
+      }
       return { content: [{ type: 'text', text: `Merged cells in range ${result.merged}` }] };
     }
     case 'sheets_unmerge': {
@@ -217,6 +268,11 @@ export async function handleSheetsToolCall(name, args, auth) {
       const result = await sheets.sortRange(auth, args.sheet_id, args.range, args.sort_column, args.ascending !== false);
       return { content: [{ type: 'text', text: `Sorted range ${result.sorted} by column ${result.column} (${result.ascending ? 'ascending' : 'descending'})` }] };
     }
+    case 'sheets_rows_cols': {
+      const result = await sheets.modifyRowsColumns(auth, args.sheet_id, args.sheet_name, args.action, args.dimension, args.start_index, args.count);
+      const actionPast = args.action === 'delete' ? 'Deleted' : 'Inserted';
+      return { content: [{ type: 'text', text: `${actionPast} ${result.count} ${result.dimension.toLowerCase()}(s) at index ${result.startIndex}` }] };
+    }
     case 'sheets_insert_rows_cols': {
       const result = await sheets.insertRowsColumns(auth, args.sheet_id, args.sheet_name, args.dimension, args.start_index, args.count);
       return { content: [{ type: 'text', text: `Inserted ${result.count} ${result.dimension.toLowerCase()}(s) at index ${result.startIndex}` }] };
@@ -224,6 +280,10 @@ export async function handleSheetsToolCall(name, args, auth) {
     case 'sheets_delete_rows_cols': {
       const result = await sheets.deleteRowsColumns(auth, args.sheet_id, args.sheet_name, args.dimension, args.start_index, args.count);
       return { content: [{ type: 'text', text: `Deleted ${result.count} ${result.dimension.toLowerCase()}(s) at index ${result.startIndex}` }] };
+    }
+    case 'sheets_dimension_size': {
+      const result = await sheets.setDimensionSize(auth, args.sheet_id, args.sheet_name, args.dimension, args.start, args.end, args.size);
+      return { content: [{ type: 'text', text: `Set ${result.dimension.toLowerCase()} size to ${result.size}px for ${result.start} to ${result.end}` }] };
     }
     case 'sheets_set_column_width': {
       const result = await sheets.setColumnWidth(auth, args.sheet_id, args.sheet_name, args.start_column, args.end_column, args.width);

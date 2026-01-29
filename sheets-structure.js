@@ -40,68 +40,56 @@ export async function sortRange(auth, sheetId, range, sortColumn, ascending = tr
   return { sorted: range, column: sortColumn, ascending };
 }
 
-export async function insertRowsColumns(auth, sheetId, sheetName, dimension, startIndex, count) {
+export async function modifyRowsColumns(auth, sheetId, sheetName, action, dimension, startIndex, count) {
   const sheets = google.sheets({ version: 'v4', auth });
 
   const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
   const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
   if (!sheet) throw new Error(`Sheet tab not found: ${sheetName}`);
 
+  const dimType = dimension.toUpperCase() === 'ROW' ? 'ROWS' : 'COLUMNS';
+  const rangeObj = {
+    sheetId: sheet.properties.sheetId,
+    dimension: dimType,
+    startIndex,
+    endIndex: startIndex + count
+  };
+
+  const request = action === 'delete'
+    ? { deleteDimension: { range: rangeObj } }
+    : { insertDimension: { range: rangeObj, inheritFromBefore: startIndex > 0 } };
+
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        insertDimension: {
-          range: {
-            sheetId: sheet.properties.sheetId,
-            dimension: dimension.toUpperCase() === 'ROW' ? 'ROWS' : 'COLUMNS',
-            startIndex,
-            endIndex: startIndex + count
-          },
-          inheritFromBefore: startIndex > 0
-        }
-      }]
-    }
+    requestBody: { requests: [request] }
   });
 
-  return { dimension, startIndex, count };
+  return { action, dimension, startIndex, count };
+}
+
+export async function insertRowsColumns(auth, sheetId, sheetName, dimension, startIndex, count) {
+  return modifyRowsColumns(auth, sheetId, sheetName, 'insert', dimension, startIndex, count);
 }
 
 export async function deleteRowsColumns(auth, sheetId, sheetName, dimension, startIndex, count) {
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-  const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
-  if (!sheet) throw new Error(`Sheet tab not found: ${sheetName}`);
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        deleteDimension: {
-          range: {
-            sheetId: sheet.properties.sheetId,
-            dimension: dimension.toUpperCase() === 'ROW' ? 'ROWS' : 'COLUMNS',
-            startIndex,
-            endIndex: startIndex + count
-          }
-        }
-      }]
-    }
-  });
-
-  return { dimension, startIndex, count };
+  return modifyRowsColumns(auth, sheetId, sheetName, 'delete', dimension, startIndex, count);
 }
 
-export async function setColumnWidth(auth, sheetId, sheetName, startColumn, endColumn, width) {
+export async function setDimensionSize(auth, sheetId, sheetName, dimension, start, end, size) {
   const sheets = google.sheets({ version: 'v4', auth });
 
   const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
   const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
   if (!sheet) throw new Error(`Sheet tab not found: ${sheetName}`);
 
-  const startIdx = colToNum(startColumn);
-  const endIdx = colToNum(endColumn) + 1;
+  let startIdx, endIdx;
+  if (dimension.toUpperCase() === 'COLUMN') {
+    startIdx = colToNum(start);
+    endIdx = colToNum(end) + 1;
+  } else {
+    startIdx = (typeof start === 'number' ? start : parseInt(start)) - 1;
+    endIdx = typeof end === 'number' ? end : parseInt(end);
+  }
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: sheetId,
@@ -110,46 +98,26 @@ export async function setColumnWidth(auth, sheetId, sheetName, startColumn, endC
         updateDimensionProperties: {
           range: {
             sheetId: sheet.properties.sheetId,
-            dimension: 'COLUMNS',
+            dimension: dimension.toUpperCase() === 'COLUMN' ? 'COLUMNS' : 'ROWS',
             startIndex: startIdx,
             endIndex: endIdx
           },
-          properties: { pixelSize: width },
+          properties: { pixelSize: size },
           fields: 'pixelSize'
         }
       }]
     }
   });
 
-  return { startColumn, endColumn, width };
+  return { dimension, start, end, size };
+}
+
+export async function setColumnWidth(auth, sheetId, sheetName, startColumn, endColumn, width) {
+  return setDimensionSize(auth, sheetId, sheetName, 'COLUMN', startColumn, endColumn, width);
 }
 
 export async function setRowHeight(auth, sheetId, sheetName, startRow, endRow, height) {
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-  const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
-  if (!sheet) throw new Error(`Sheet tab not found: ${sheetName}`);
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        updateDimensionProperties: {
-          range: {
-            sheetId: sheet.properties.sheetId,
-            dimension: 'ROWS',
-            startIndex: startRow - 1,
-            endIndex: endRow
-          },
-          properties: { pixelSize: height },
-          fields: 'pixelSize'
-        }
-      }]
-    }
-  });
-
-  return { startRow, endRow, height };
+  return setDimensionSize(auth, sheetId, sheetName, 'ROW', startRow, endRow, height);
 }
 
 export async function batchUpdate(auth, sheetId, operations) {

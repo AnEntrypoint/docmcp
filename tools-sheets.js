@@ -1,19 +1,19 @@
 export const SCRIPTS_TOOLS = [
   {
     name: 'scripts_create',
-    description: 'Create a new Google Apps Script project attached to a spreadsheet. The script is tracked in a hidden _scripts tab.',
+    description: 'create apps script project attached to spreadsheet',
     inputSchema: {
       type: 'object',
       properties: {
-        sheet_id: { type: 'string', description: 'Google Sheet ID to attach the script to' },
-        script_name: { type: 'string', description: 'Name for the new script project' }
+        sheet_id: { type: 'string', description: 'Google Sheet ID' },
+        script_name: { type: 'string', description: 'script project name' }
       },
       required: ['sheet_id', 'script_name']
     }
   },
   {
     name: 'scripts_list',
-    description: 'List all scripts attached to a spreadsheet (from the _scripts tab).',
+    description: 'list scripts attached to spreadsheet',
     inputSchema: {
       type: 'object',
       properties: {
@@ -24,78 +24,60 @@ export const SCRIPTS_TOOLS = [
   },
   {
     name: 'scripts_read',
-    description: 'Read the full content of an attached script including all files.',
+    description: 'read script content including all files',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
         script: {
           oneOf: [
-            { type: 'string', description: 'Script name or ID' },
-            { type: 'number', description: 'Script index (0-based)' }
+            { type: 'string', description: 'script name or ID' },
+            { type: 'number', description: 'script index 0-based' }
           ],
-          description: 'Script to read'
+          description: 'script to read'
         }
       },
       required: ['sheet_id', 'script']
     }
   },
   {
-    name: 'scripts_edit',
-    description: 'Edit script content using old_text/new_text pattern (like Claude Edit tool).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        script: {
-          oneOf: [
-            { type: 'string', description: 'Script name or ID' },
-            { type: 'number', description: 'Script index (0-based)' }
-          ],
-          description: 'Script to edit'
-        },
-        file_name: { type: 'string', description: 'Name of the file within the script (e.g., "Code")' },
-        old_text: { type: 'string', description: 'The exact text to find and replace' },
-        new_text: { type: 'string', description: 'The text to replace it with' },
-        replace_all: { type: 'boolean', description: 'Replace all occurrences (default: false)', default: false }
-      },
-      required: ['sheet_id', 'script', 'file_name', 'old_text', 'new_text']
-    }
-  },
-  {
     name: 'scripts_write',
-    description: 'Overwrite entire script file content or create a new file.',
+    description: 'write or edit script file content mode edit for old_text new_text replacement mode write for full overwrite',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
         script: {
           oneOf: [
-            { type: 'string', description: 'Script name or ID' },
-            { type: 'number', description: 'Script index (0-based)' }
+            { type: 'string', description: 'script name or ID' },
+            { type: 'number', description: 'script index 0-based' }
           ],
-          description: 'Script to write to'
+          description: 'script to modify'
         },
-        file_name: { type: 'string', description: 'Name of the file (e.g., "Code", "Utilities")' },
-        content: { type: 'string', description: 'Full content for the file' },
-        file_type: { type: 'string', enum: ['SERVER_JS', 'HTML'], description: 'File type (default: SERVER_JS)', default: 'SERVER_JS' }
+        file_name: { type: 'string', description: 'file name in script' },
+        mode: { type: 'string', enum: ['write', 'edit'], description: 'write for full overwrite edit for replacement default write', default: 'write' },
+        content: { type: 'string', description: 'full content for write mode' },
+        old_text: { type: 'string', description: 'text to find for edit mode' },
+        new_text: { type: 'string', description: 'replacement text for edit mode' },
+        replace_all: { type: 'boolean', description: 'replace all occurrences for edit mode default false', default: false },
+        file_type: { type: 'string', enum: ['SERVER_JS', 'HTML'], description: 'file type for new files default SERVER_JS', default: 'SERVER_JS' }
       },
-      required: ['sheet_id', 'script', 'file_name', 'content']
+      required: ['sheet_id', 'script', 'file_name']
     }
   },
   {
     name: 'scripts_delete',
-    description: 'Delete an attached script (removes from _scripts tab). Only works for scripts tracked in the sheet.',
+    description: 'delete script from spreadsheet',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
         script: {
           oneOf: [
-            { type: 'string', description: 'Script name or ID' },
-            { type: 'number', description: 'Script index (0-based)' }
+            { type: 'string', description: 'script name or ID' },
+            { type: 'number', description: 'script index 0-based' }
           ],
-          description: 'Script to delete'
+          description: 'script to delete'
         }
       },
       required: ['sheet_id', 'script']
@@ -103,20 +85,20 @@ export const SCRIPTS_TOOLS = [
   },
   {
     name: 'scripts_run',
-    description: 'Execute a function in an attached script. The script must be deployed as an API executable.',
+    description: 'execute function in script must be deployed as API executable',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
         script: {
           oneOf: [
-            { type: 'string', description: 'Script name or ID' },
-            { type: 'number', description: 'Script index (0-based)' }
+            { type: 'string', description: 'script name or ID' },
+            { type: 'number', description: 'script index 0-based' }
           ],
-          description: 'Script containing the function'
+          description: 'script containing function'
         },
-        function_name: { type: 'string', description: 'Name of the function to execute' },
-        parameters: { type: 'array', description: 'Array of parameters to pass to the function', items: {} }
+        function_name: { type: 'string', description: 'function to execute' },
+        parameters: { type: 'array', description: 'parameters to pass', items: {} }
       },
       required: ['sheet_id', 'script', 'function_name']
     }
@@ -126,35 +108,35 @@ export const SCRIPTS_TOOLS = [
 export const SHEETS_TOOLS = [
   {
     name: 'sheets_create',
-    description: 'Create a new Google Sheet with the specified title. Returns the spreadsheet ID and title.',
+    description: 'create new spreadsheet returns id and title',
     inputSchema: {
       type: 'object',
       properties: {
-        title: { type: 'string', description: 'Title for the new spreadsheet' }
+        title: { type: 'string', description: 'spreadsheet title' }
       },
       required: ['title']
     }
   },
   {
     name: 'sheets_read',
-    description: 'Read values from a Google Sheet range. Returns a 2D array of cell values.',
+    description: 'read values from range returns 2D array',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        range: { type: 'string', description: 'A1 range notation (default: "Sheet1")' }
+        range: { type: 'string', description: 'A1 range default Sheet1' }
       },
       required: ['sheet_id']
     }
   },
   {
     name: 'sheets_edit',
-    description: 'Update values in a Google Sheet range. Overwrites the specified range with new values.',
+    description: 'update values in range overwrites with new values',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        range: { type: 'string', description: 'A1 range notation' },
+        range: { type: 'string', description: 'A1 range' },
         values: { type: 'array', items: { type: 'array', items: {} }, description: '2D array of values' }
       },
       required: ['sheet_id', 'range', 'values']
@@ -162,12 +144,12 @@ export const SHEETS_TOOLS = [
   },
   {
     name: 'sheets_insert',
-    description: 'Append rows to a Google Sheet after existing data.',
+    description: 'append rows after existing data',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        range: { type: 'string', description: 'A1 range notation (default: "Sheet1")' },
+        range: { type: 'string', description: 'A1 range default Sheet1' },
         values: { type: 'array', items: { type: 'array', items: {} }, description: '2D array of values to append' }
       },
       required: ['sheet_id', 'values']
@@ -175,61 +157,61 @@ export const SHEETS_TOOLS = [
   },
   {
     name: 'sheets_get_cell',
-    description: 'Get a single cell value from a Google Sheet.',
+    description: 'get single cell value',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        cell: { type: 'string', description: 'Cell reference (e.g. "A1", "Sheet1!B2")' }
+        cell: { type: 'string', description: 'cell reference A1 or Sheet1!B2' }
       },
       required: ['sheet_id', 'cell']
     }
   },
   {
     name: 'sheets_set_cell',
-    description: 'Set a single cell value in a Google Sheet. Completely replaces the cell content.',
+    description: 'set single cell value replaces content',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        cell: { type: 'string', description: 'Cell reference (e.g. "A1", "Sheet1!B2")' },
-        value: { description: 'Value to set' }
+        cell: { type: 'string', description: 'cell reference A1 or Sheet1!B2' },
+        value: { description: 'value to set' }
       },
       required: ['sheet_id', 'cell', 'value']
     }
   },
   {
     name: 'sheets_edit_cell',
-    description: 'Performs exact string replacement within a cell. The old_text must be unique within the cell unless replace_all is true.',
+    description: 'replace text in cell old_text must be unique unless replace_all true',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        cell: { type: 'string', description: 'Cell reference' },
-        old_text: { type: 'string', description: 'The exact text to find and replace' },
-        new_text: { type: 'string', description: 'The text to replace it with' },
-        replace_all: { type: 'boolean', description: 'Replace all occurrences (default: false)', default: false }
+        cell: { type: 'string', description: 'cell reference' },
+        old_text: { type: 'string', description: 'text to find and replace' },
+        new_text: { type: 'string', description: 'replacement text' },
+        replace_all: { type: 'boolean', description: 'replace all occurrences default false', default: false }
       },
       required: ['sheet_id', 'cell', 'old_text', 'new_text']
     }
   },
   {
     name: 'sheets_find_replace',
-    description: 'Find and replace text across ALL matching cells in a Google Sheet.',
+    description: 'find and replace text across all cells in sheet',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        find: { type: 'string', description: 'Text to find' },
-        replace: { type: 'string', description: 'Replacement text' },
-        sheet_name: { type: 'string', description: 'Specific sheet tab (optional, searches all if omitted)' }
+        find: { type: 'string', description: 'text to find' },
+        replace: { type: 'string', description: 'replacement text' },
+        sheet_name: { type: 'string', description: 'tab name optional searches all if omitted' }
       },
       required: ['sheet_id', 'find', 'replace']
     }
   },
   {
     name: 'sheets_get_info',
-    description: 'Get spreadsheet metadata including title, sheet tabs, dimensions, and owners.',
+    description: 'get spreadsheet metadata title tabs dimensions owners',
     inputSchema: {
       type: 'object',
       properties: {
@@ -240,97 +222,74 @@ export const SHEETS_TOOLS = [
   },
   {
     name: 'sheets_list',
-    description: 'List recent Google Sheets, optionally filtered by name.',
+    description: 'list spreadsheets optionally filtered by name',
     inputSchema: {
       type: 'object',
       properties: {
-        max_results: { type: 'number', description: 'Maximum spreadsheets to return (default: 20)', default: 20 },
-        query: { type: 'string', description: 'Optional search query to filter by name' }
+        max_results: { type: 'number', description: 'max results default 20', default: 20 },
+        query: { type: 'string', description: 'search query to filter by name' }
       }
     }
   },
   {
-    name: 'sheets_add_sheet',
-    description: 'Add a new sheet tab to a spreadsheet.',
+    name: 'sheets_tab',
+    description: 'add delete or rename sheet tab',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        title: { type: 'string', description: 'Title for the new sheet tab' }
+        action: { type: 'string', enum: ['add', 'delete', 'rename'], description: 'action to perform' },
+        title: { type: 'string', description: 'tab title for add or new name for rename' },
+        sheet_name: { type: 'string', description: 'tab name for delete or rename' }
       },
-      required: ['sheet_id', 'title']
-    }
-  },
-  {
-    name: 'sheets_delete_sheet',
-    description: 'Delete a sheet tab from a spreadsheet.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        sheet_name: { type: 'string', description: 'Name of the sheet tab to delete' }
-      },
-      required: ['sheet_id', 'sheet_name']
-    }
-  },
-  {
-    name: 'sheets_rename_sheet',
-    description: 'Rename a sheet tab in a spreadsheet.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        old_name: { type: 'string', description: 'Current name of the sheet tab' },
-        new_name: { type: 'string', description: 'New name for the sheet tab' }
-      },
-      required: ['sheet_id', 'old_name', 'new_name']
+      required: ['sheet_id', 'action']
     }
   },
   {
     name: 'sheets_clear',
-    description: 'Clear values from a range. Optionally clear formatting too.',
+    description: 'clear values from range optionally clear formatting',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        range: { type: 'string', description: 'A1 range notation' },
-        clear_formats: { type: 'boolean', description: 'Also clear formatting (default: false)', default: false }
+        range: { type: 'string', description: 'A1 range' },
+        clear_formats: { type: 'boolean', description: 'also clear formatting default false', default: false }
       },
       required: ['sheet_id', 'range']
     }
   },
   {
     name: 'sheets_format',
-    description: 'Apply formatting to a range of cells including colors, fonts, alignment, borders, and number formats.',
+    description: 'format range colors fonts alignment borders number formats',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        range: { type: 'string', description: 'A1 range notation' },
-        background_color: { type: 'string', description: 'Background color as hex (e.g., "#FFFF00")' },
-        text_color: { type: 'string', description: 'Text color as hex' },
-        bold: { type: 'boolean', description: 'Apply bold' },
-        italic: { type: 'boolean', description: 'Apply italic' },
-        font_size: { type: 'number', description: 'Font size in points' },
-        font_family: { type: 'string', description: 'Font family name' },
-        horizontal_alignment: { type: 'string', enum: ['LEFT', 'CENTER', 'RIGHT'], description: 'Horizontal alignment' },
-        vertical_alignment: { type: 'string', enum: ['TOP', 'MIDDLE', 'BOTTOM'], description: 'Vertical alignment' },
-        wrap_strategy: { type: 'string', enum: ['OVERFLOW', 'CLIP', 'WRAP'], description: 'Text wrap strategy' },
+        range: { type: 'string', description: 'A1 range' },
+        background_color: { type: 'string', description: 'background color hex' },
+        text_color: { type: 'string', description: 'text color hex' },
+        bold: { type: 'boolean', description: 'apply bold' },
+        italic: { type: 'boolean', description: 'apply italic' },
+        font_size: { type: 'number', description: 'font size in points' },
+        font_family: { type: 'string', description: 'font family name' },
+        horizontal_alignment: { type: 'string', enum: ['LEFT', 'CENTER', 'RIGHT'], description: 'horizontal alignment' },
+        vertical_alignment: { type: 'string', enum: ['TOP', 'MIDDLE', 'BOTTOM'], description: 'vertical alignment' },
+        wrap_strategy: { type: 'string', enum: ['OVERFLOW', 'CLIP', 'WRAP'], description: 'text wrap strategy' },
         number_format: {
           type: 'object',
-          description: 'Number format with type and pattern',
+          description: 'number format type and pattern',
           properties: {
             type: { type: 'string', enum: ['NUMBER', 'CURRENCY', 'PERCENT', 'DATE', 'TIME', 'DATE_TIME', 'SCIENTIFIC', 'TEXT'] },
-            pattern: { type: 'string', description: 'Format pattern (e.g., "#,##0.00", "$#,##0.00", "yyyy-mm-dd")' }
+            pattern: { type: 'string', description: 'format pattern' }
           }
         },
         borders: {
           type: 'object',
-          description: 'Border settings',
+          description: 'border settings',
           properties: {
             style: { type: 'string', enum: ['SOLID', 'SOLID_MEDIUM', 'SOLID_THICK', 'DASHED', 'DOTTED', 'DOUBLE'] },
-            color: { type: 'string', description: 'Border color as hex' },
-            inner: { type: 'boolean', description: 'Also apply inner borders' }
+            color: { type: 'string', description: 'border color hex' },
+            inner: { type: 'boolean', description: 'also apply inner borders' }
           }
         }
       },
@@ -339,144 +298,105 @@ export const SHEETS_TOOLS = [
   },
   {
     name: 'sheets_merge',
-    description: 'Merge cells in a range.',
+    description: 'merge or unmerge cells in range',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        range: { type: 'string', description: 'A1 range notation' }
-      },
-      required: ['sheet_id', 'range']
-    }
-  },
-  {
-    name: 'sheets_unmerge',
-    description: 'Unmerge previously merged cells.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        range: { type: 'string', description: 'A1 range notation' }
+        range: { type: 'string', description: 'A1 range' },
+        action: { type: 'string', enum: ['merge', 'unmerge'], description: 'merge or unmerge default merge', default: 'merge' }
       },
       required: ['sheet_id', 'range']
     }
   },
   {
     name: 'sheets_freeze',
-    description: 'Freeze rows and/or columns in a sheet tab.',
+    description: 'freeze rows and columns in tab 0 to unfreeze',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        sheet_name: { type: 'string', description: 'Name of the sheet tab' },
-        rows: { type: 'number', description: 'Number of rows to freeze (0 to unfreeze)', default: 0 },
-        columns: { type: 'number', description: 'Number of columns to freeze (0 to unfreeze)', default: 0 }
+        sheet_name: { type: 'string', description: 'tab name' },
+        rows: { type: 'number', description: 'rows to freeze 0 to unfreeze', default: 0 },
+        columns: { type: 'number', description: 'columns to freeze 0 to unfreeze', default: 0 }
       },
       required: ['sheet_id', 'sheet_name']
     }
   },
   {
     name: 'sheets_sort',
-    description: 'Sort a range by a specified column.',
+    description: 'sort range by column',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        range: { type: 'string', description: 'A1 range notation' },
+        range: { type: 'string', description: 'A1 range' },
         sort_column: {
           oneOf: [
-            { type: 'string', description: 'Column letter (e.g., "A", "B")' },
-            { type: 'number', description: 'Column index (0-based)' }
+            { type: 'string', description: 'column letter A B' },
+            { type: 'number', description: 'column index 0-based' }
           ],
-          description: 'Column to sort by'
+          description: 'column to sort by'
         },
-        ascending: { type: 'boolean', description: 'Sort ascending (default: true)', default: true }
+        ascending: { type: 'boolean', description: 'sort ascending default true', default: true }
       },
       required: ['sheet_id', 'range', 'sort_column']
     }
   },
   {
-    name: 'sheets_insert_rows_cols',
-    description: 'Insert rows or columns at a specified position.',
+    name: 'sheets_rows_cols',
+    description: 'insert or delete rows or columns',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        sheet_name: { type: 'string', description: 'Name of the sheet tab' },
-        dimension: { type: 'string', enum: ['ROW', 'COLUMN'], description: 'Insert rows or columns' },
-        start_index: { type: 'number', description: '0-based index where to insert' },
-        count: { type: 'number', description: 'Number of rows/columns to insert' }
+        sheet_name: { type: 'string', description: 'tab name' },
+        action: { type: 'string', enum: ['insert', 'delete'], description: 'insert or delete' },
+        dimension: { type: 'string', enum: ['ROW', 'COLUMN'], description: 'rows or columns' },
+        start_index: { type: 'number', description: '0-based start index' },
+        count: { type: 'number', description: 'number to insert or delete' }
       },
-      required: ['sheet_id', 'sheet_name', 'dimension', 'start_index', 'count']
+      required: ['sheet_id', 'sheet_name', 'action', 'dimension', 'start_index', 'count']
     }
   },
   {
-    name: 'sheets_delete_rows_cols',
-    description: 'Delete rows or columns at a specified position.',
+    name: 'sheets_dimension_size',
+    description: 'set column width or row height in pixels',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        sheet_name: { type: 'string', description: 'Name of the sheet tab' },
-        dimension: { type: 'string', enum: ['ROW', 'COLUMN'], description: 'Delete rows or columns' },
-        start_index: { type: 'number', description: '0-based index where to start deleting' },
-        count: { type: 'number', description: 'Number of rows/columns to delete' }
+        sheet_name: { type: 'string', description: 'tab name' },
+        dimension: { type: 'string', enum: ['COLUMN', 'ROW'], description: 'column or row' },
+        start: { oneOf: [{ type: 'string' }, { type: 'number' }], description: 'start column letter or 0-based index for columns or 1-based row number for rows' },
+        end: { oneOf: [{ type: 'string' }, { type: 'number' }], description: 'end column letter or 0-based index for columns or 1-based row number for rows' },
+        size: { type: 'number', description: 'size in pixels' }
       },
-      required: ['sheet_id', 'sheet_name', 'dimension', 'start_index', 'count']
-    }
-  },
-  {
-    name: 'sheets_set_column_width',
-    description: 'Set the width of columns.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        sheet_name: { type: 'string', description: 'Name of the sheet tab' },
-        start_column: { oneOf: [{ type: 'string' }, { type: 'number' }], description: 'Start column (letter or 0-based index)' },
-        end_column: { oneOf: [{ type: 'string' }, { type: 'number' }], description: 'End column (letter or 0-based index)' },
-        width: { type: 'number', description: 'Width in pixels' }
-      },
-      required: ['sheet_id', 'sheet_name', 'start_column', 'end_column', 'width']
-    }
-  },
-  {
-    name: 'sheets_set_row_height',
-    description: 'Set the height of rows.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        sheet_name: { type: 'string', description: 'Name of the sheet tab' },
-        start_row: { type: 'number', description: 'Start row (1-based)' },
-        end_row: { type: 'number', description: 'End row (1-based)' },
-        height: { type: 'number', description: 'Height in pixels' }
-      },
-      required: ['sheet_id', 'sheet_name', 'start_row', 'end_row', 'height']
+      required: ['sheet_id', 'sheet_name', 'dimension', 'start', 'end', 'size']
     }
   },
   {
     name: 'sheets_get_formula',
-    description: 'Get the formula and value of a cell.',
+    description: 'get cell formula and value',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
-        cell: { type: 'string', description: 'Cell reference (e.g., "A1", "Sheet1!B2")' }
+        cell: { type: 'string', description: 'cell reference A1 or Sheet1!B2' }
       },
       required: ['sheet_id', 'cell']
     }
   },
   {
     name: 'sheets_batch',
-    description: 'Execute multiple sheet operations in a single batch for efficiency.',
+    description: 'execute multiple operations in one batch',
     inputSchema: {
       type: 'object',
       properties: {
         sheet_id: { type: 'string', description: 'Google Sheet ID' },
         operations: {
           type: 'array',
-          description: 'Array of operations: {type: "setValue"|"format", range, values?, backgroundColor?, bold?}',
+          description: 'array of operations type setValue format with range values backgroundColor bold',
           items: { type: 'object' }
         }
       },

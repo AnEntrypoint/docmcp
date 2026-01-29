@@ -31,8 +31,10 @@ export {
 
 export {
   sortRange,
+  modifyRowsColumns,
   insertRowsColumns,
   deleteRowsColumns,
+  setDimensionSize,
   setColumnWidth,
   setRowHeight,
   batchUpdate

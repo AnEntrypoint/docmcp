@@ -136,7 +136,7 @@ export async function formatRange(auth, sheetId, range, formatting) {
   return { formatted: range };
 }
 
-export async function mergeCells(auth, sheetId, range) {
+export async function mergeCells(auth, sheetId, range, action = 'merge') {
   const sheets = google.sheets({ version: 'v4', auth });
 
   const parsed = parseA1Range(range);
@@ -149,56 +149,26 @@ export async function mergeCells(auth, sheetId, range) {
     if (!targetSheet) throw new Error(`Sheet tab not found: ${parsed.sheetName}`);
   }
 
+  const rangeObj = {
+    sheetId: targetSheet.properties.sheetId,
+    startRowIndex: parsed.startRow,
+    endRowIndex: parsed.endRow + 1,
+    startColumnIndex: parsed.startCol,
+    endColumnIndex: parsed.endCol + 1
+  };
+
+  const request = action === 'unmerge'
+    ? { unmergeCells: { range: rangeObj } }
+    : { mergeCells: { range: rangeObj, mergeType: 'MERGE_ALL' } };
+
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        mergeCells: {
-          range: {
-            sheetId: targetSheet.properties.sheetId,
-            startRowIndex: parsed.startRow,
-            endRowIndex: parsed.endRow + 1,
-            startColumnIndex: parsed.startCol,
-            endColumnIndex: parsed.endCol + 1
-          },
-          mergeType: 'MERGE_ALL'
-        }
-      }]
-    }
+    requestBody: { requests: [request] }
   });
 
-  return { merged: range };
+  return action === 'unmerge' ? { unmerged: range } : { merged: range };
 }
 
 export async function unmergeCells(auth, sheetId, range) {
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  const parsed = parseA1Range(range);
-  if (!parsed) throw new Error(`Invalid range format: ${range}`);
-
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-  let targetSheet = spreadsheet.data.sheets[0];
-  if (parsed.sheetName) {
-    targetSheet = spreadsheet.data.sheets.find(s => s.properties.title === parsed.sheetName);
-    if (!targetSheet) throw new Error(`Sheet tab not found: ${parsed.sheetName}`);
-  }
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        unmergeCells: {
-          range: {
-            sheetId: targetSheet.properties.sheetId,
-            startRowIndex: parsed.startRow,
-            endRowIndex: parsed.endRow + 1,
-            startColumnIndex: parsed.startCol,
-            endColumnIndex: parsed.endCol + 1
-          }
-        }
-      }]
-    }
-  });
-
-  return { unmerged: range };
+  return mergeCells(auth, sheetId, range, 'unmerge');
 }

@@ -7,7 +7,8 @@ export {
   createDocument,
   getDocumentInfo,
   listDocuments,
-  getDocumentStructure
+  getDocumentStructure,
+  searchDrive
 } from './docs-core.js';
 
 export {

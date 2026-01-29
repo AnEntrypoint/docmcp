@@ -66,6 +66,22 @@ export const MEDIA_TOOLS = [
   }
 ];
 
+export const DRIVE_TOOLS = [
+  {
+    name: 'drive_search',
+    description: 'search Google Drive for docs and sheets by name or content',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'search query matches name and content' },
+        type: { type: 'string', enum: ['all', 'docs', 'sheets'], description: 'file type filter default all', default: 'all' },
+        max_results: { type: 'number', description: 'max results default 20', default: 20 }
+      },
+      required: ['query']
+    }
+  }
+];
+
 export const DOCS_TOOLS = [
   {
     name: 'docs_create',

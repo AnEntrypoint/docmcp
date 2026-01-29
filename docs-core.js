@@ -146,3 +146,33 @@ export async function getDocumentStructure(auth, docId) {
 
   return structure;
 }
+
+export async function searchDrive(auth, query, type = 'all', maxResults = 20) {
+  const drive = google.drive({ version: 'v3', auth });
+
+  const mimeTypes = {
+    docs: "mimeType='application/vnd.google-apps.document'",
+    sheets: "mimeType='application/vnd.google-apps.spreadsheet'",
+    all: "(mimeType='application/vnd.google-apps.document' or mimeType='application/vnd.google-apps.spreadsheet')"
+  };
+
+  const mimeFilter = mimeTypes[type] || mimeTypes.all;
+  const escapedQuery = query.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const q = `${mimeFilter} and trashed=false and (name contains '${escapedQuery}' or fullText contains '${escapedQuery}')`;
+
+  const result = await drive.files.list({
+    q,
+    pageSize: maxResults,
+    orderBy: 'modifiedTime desc',
+    fields: 'files(id,name,mimeType,createdTime,modifiedTime,owners)'
+  });
+
+  return (result.data.files || []).map(f => ({
+    id: f.id,
+    name: f.name,
+    type: f.mimeType === 'application/vnd.google-apps.document' ? 'doc' : 'sheet',
+    createdTime: f.createdTime,
+    modifiedTime: f.modifiedTime,
+    owners: f.owners?.map(o => ({ name: o.displayName, email: o.emailAddress })) || []
+  }));
+}

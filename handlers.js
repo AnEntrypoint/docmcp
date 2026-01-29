@@ -123,6 +123,10 @@ export async function handleDocsToolCall(name, args, auth) {
       const result = await docs.batchUpdate(auth, args.doc_id, args.operations);
       return { content: [{ type: 'text', text: `Applied ${result.operationsApplied} operations` }] };
     }
+    case 'drive_search': {
+      const results = await docs.searchDrive(auth, args.query, args.type || 'all', args.max_results || 20);
+      return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
+    }
     default:
       return null;
   }

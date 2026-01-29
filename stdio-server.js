@@ -9,7 +9,7 @@ import { OAuth2Client } from 'google-auth-library';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { DOCS_TOOLS, SECTION_TOOLS, MEDIA_TOOLS } from './tools-docs.js';
+import { DOCS_TOOLS, SECTION_TOOLS, MEDIA_TOOLS, DRIVE_TOOLS } from './tools-docs.js';
 import { SHEETS_TOOLS, SCRIPTS_TOOLS } from './tools-sheets.js';
 import { handleDocsToolCall, handleSheetsToolCall } from './handlers.js';
 
@@ -37,7 +37,7 @@ function getAuth() {
   return client;
 }
 
-const TOOLS = [...DOCS_TOOLS, ...SECTION_TOOLS, ...MEDIA_TOOLS, ...SHEETS_TOOLS, ...SCRIPTS_TOOLS];
+const TOOLS = [...DOCS_TOOLS, ...SECTION_TOOLS, ...MEDIA_TOOLS, ...DRIVE_TOOLS, ...SHEETS_TOOLS, ...SCRIPTS_TOOLS];
 
 async function handleToolCall(name, args) {
   const auth = getAuth();

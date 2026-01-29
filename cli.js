@@ -88,11 +88,136 @@ Run 'docmcp skill' for detailed documentation.`);
   if (cmd === 'auth') {
     const sub = args[1];
     if (sub === 'login') {
-      console.log('Starting authentication flow...');
-      const { default: startServer } = await import('./server.js');
+      const http = await import('http');
+      const { OAuth2Client } = await import('google-auth-library');
+      
+      const tokens = loadTokens();
+      const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || tokens?.client_id;
+      const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || tokens?.client_secret;
+      
+      if (!clientId || !clientSecret) {
+        console.error('Error: No OAuth credentials. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET');
+        process.exit(1);
+      }
+      
+      const SCOPES = [
+        'https://www.googleapis.com/auth/drive',
+        'https://www.googleapis.com/auth/documents',
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/script.projects'
+      ];
+      
+      const port = 9998;
+      const redirectUri = `http://localhost:${port}/callback`;
+      const client = new OAuth2Client(clientId, clientSecret, redirectUri);
+      
+      const authUrl = client.generateAuthUrl({
+        access_type: 'offline',
+        scope: SCOPES,
+        prompt: 'consent'
+      });
+      
+      console.log('\nOpen this URL to authenticate:\n');
+      console.log(authUrl);
+      console.log('\nWaiting for callback on port', port, '...\n');
+      
+      const server = http.createServer(async (req, res) => {
+        if (!req.url.startsWith('/callback')) {
+          res.writeHead(404);
+          res.end('Not found');
+          return;
+        }
+        
+        const url = new URL(req.url, `http://localhost:${port}`);
+        const code = url.searchParams.get('code');
+        const error = url.searchParams.get('error');
+        
+        if (error) {
+          res.writeHead(400);
+          res.end(`Error: ${error}`);
+          server.close();
+          process.exit(1);
+        }
+        
+        if (!code) {
+          res.writeHead(400);
+          res.end('No code received');
+          return;
+        }
+        
+        try {
+          const { tokens: newTokens } = await client.getToken(code);
+          newTokens.client_id = clientId;
+          newTokens.client_secret = clientSecret;
+          
+          const configDir = path.join(os.homedir(), '.config', 'gcloud', 'docmcp');
+          fs.mkdirSync(configDir, { recursive: true });
+          fs.writeFileSync(TOKEN_FILE, JSON.stringify(newTokens, null, 2));
+          fs.chmodSync(TOKEN_FILE, 0o600);
+          
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end('<html><body><h1>Success!</h1><p>You can close this window.</p></body></html>');
+          
+          console.log('Authentication successful! Tokens saved to', TOKEN_FILE);
+          console.log('Scopes:', newTokens.scope);
+          server.close();
+          process.exit(0);
+        } catch (err) {
+          res.writeHead(500);
+          res.end(`Error: ${err.message}`);
+          console.error('Token exchange failed:', err.message);
+          server.close();
+          process.exit(1);
+        }
+      });
+      
+      server.listen(port);
       return;
     }
-    console.error('Unknown auth command. Use: docmcp auth login');
+    
+    if (sub === 'status') {
+      const tokens = loadTokens();
+      if (!tokens) {
+        console.log('Not authenticated. Run: docmcp auth login');
+        process.exit(1);
+      }
+      console.log('Authenticated');
+      console.log('Scopes:', tokens.scope || 'unknown');
+      console.log('Token file:', TOKEN_FILE);
+      return;
+    }
+    
+    if (sub === 'exchange' && args[2]) {
+      const code = args[2];
+      const { OAuth2Client } = await import('google-auth-library');
+      
+      const tokens = loadTokens();
+      const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || tokens?.client_id;
+      const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || tokens?.client_secret;
+      const redirectUri = args[3] || 'http://localhost:9998/callback';
+      
+      const client = new OAuth2Client(clientId, clientSecret, redirectUri);
+      
+      try {
+        const { tokens: newTokens } = await client.getToken(code);
+        newTokens.client_id = clientId;
+        newTokens.client_secret = clientSecret;
+        
+        const configDir = path.join(os.homedir(), '.config', 'gcloud', 'docmcp');
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(TOKEN_FILE, JSON.stringify(newTokens, null, 2));
+        fs.chmodSync(TOKEN_FILE, 0o600);
+        
+        console.log('Tokens saved to', TOKEN_FILE);
+        console.log('Scopes:', newTokens.scope);
+      } catch (err) {
+        console.error('Token exchange failed:', err.message);
+        process.exit(1);
+      }
+      return;
+    }
+    
+    console.error('Unknown auth command. Use: docmcp auth login, docmcp auth status');
     process.exit(1);
   }
 

@@ -1,0 +1,29 @@
+{
+  "name": "docmcp-skill",
+  "version": "1.0.0",
+  "description": "Claude Code skill for Google Docs, Sheets, Drive, and Apps Script operations",
+  "type": "module",
+  "scripts": {
+    "postinstall": "node install-skill.js",
+    "preuninstall": "node uninstall-skill.js"
+  },
+  "keywords": [
+    "claude-code",
+    "skill",
+    "google-docs",
+    "google-sheets",
+    "google-drive",
+    "apps-script",
+    "agent-skill"
+  ],
+  "license": "MIT",
+  "files": [
+    "SKILL.md",
+    "reference.md",
+    "examples.md",
+    "scripts/",
+    "install-skill.js",
+    "uninstall-skill.js",
+    "!scripts/node_modules"
+  ]
+}

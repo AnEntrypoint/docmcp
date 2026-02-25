@@ -12,7 +12,8 @@ import path from 'path';
 import os from 'os';
 import { DOCS_TOOLS, SECTION_TOOLS, MEDIA_TOOLS, DRIVE_TOOLS } from './tools-docs.js';
 import { SHEETS_TOOLS, SCRIPTS_TOOLS } from './tools-sheets.js';
-import { handleDocsToolCall, handleSheetsToolCall } from './handlers.js';
+import { GMAIL_TOOLS } from './tools-gmail.js';
+import { handleDocsToolCall, handleSheetsToolCall, handleGmailToolCall } from './handlers.js';
 
 const TOKEN_FILE = path.join(os.homedir(), '.config', 'gcloud', 'docmcp', 'token.json');
 const ADC_FILE = path.join(os.homedir(), '.config', 'gcloud', 'application_default_credentials.json');
@@ -21,7 +22,8 @@ const SCOPES = [
   'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/documents',
   'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/script.projects'
+  'https://www.googleapis.com/auth/script.projects',
+  'https://www.googleapis.com/auth/gmail.modify'
 ];
 
 function loadTokens() {
@@ -62,7 +64,7 @@ async function getAuth() {
   return client;
 }
 
-const TOOLS = [...DOCS_TOOLS, ...SECTION_TOOLS, ...MEDIA_TOOLS, ...DRIVE_TOOLS, ...SHEETS_TOOLS, ...SCRIPTS_TOOLS];
+const TOOLS = [...DOCS_TOOLS, ...SECTION_TOOLS, ...MEDIA_TOOLS, ...DRIVE_TOOLS, ...SHEETS_TOOLS, ...SCRIPTS_TOOLS, ...GMAIL_TOOLS];
 
 async function handleToolCall(name, args) {
   const auth = await getAuth();
@@ -72,6 +74,9 @@ async function handleToolCall(name, args) {
 
   const sheetsResult = await handleSheetsToolCall(name, args, auth);
   if (sheetsResult) return sheetsResult;
+
+  const gmailResult = await handleGmailToolCall(name, args, auth);
+  if (gmailResult) return gmailResult;
 
   throw new Error(`Unknown tool: ${name}`);
 }

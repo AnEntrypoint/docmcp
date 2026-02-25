@@ -12,12 +12,38 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "start": "node stdio-server.js"
+    "start": "node stdio-server.js",
+    "bun:start": "bun run stdio-server.js",
+    "bun:install": "bun install"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0",
     "google-auth-library": "^10.3.0",
     "googleapis": "^144.0.0"
   },
+  "files": [
+    "cli.js",
+    "stdio-server.js",
+    "docs.js",
+    "docs-core.js",
+    "docs-edit.js",
+    "docs-format.js",
+    "docs-media.js",
+    "docs-sections.js",
+    "gmail.js",
+    "handlers.js",
+    "scripts.js",
+    "sheets.js",
+    "sheets-core.js",
+    "sheets-edit.js",
+    "sheets-format.js",
+    "sheets-structure.js",
+    "sheets-tabs.js",
+    "tools-docs.js",
+    "tools-gmail.js",
+    "tools-sheets.js",
+    "package.json",
+    "README.md"
+  ],
   "license": "MIT"
 }

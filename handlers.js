@@ -3,6 +3,7 @@ import * as sheets from './sheets.js';
 import * as sections from './docs-sections.js';
 import * as media from './docs-media.js';
 import * as scripts from './scripts.js';
+import * as gmail from './gmail.js';
 
 export async function handleDocsToolCall(name, args, auth) {
   switch (name) {
@@ -312,6 +313,53 @@ export async function handleSheetsToolCall(name, args, auth) {
     case 'sheets_batch': {
       const result = await sheets.batchUpdate(auth, args.sheet_id, args.operations);
       return { content: [{ type: 'text', text: `Updated ${result.valuesUpdated} values, applied ${result.formatsApplied} formats` }] };
+    }
+    default:
+      return null;
+  }
+}
+
+export async function handleGmailToolCall(name, args, auth) {
+  switch (name) {
+    case 'gmail_list': {
+      const result = await gmail.listEmails(auth, args.max_results || 20, args.query || null, args.label_ids || null);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_search': {
+      const result = await gmail.searchEmails(auth, args.query, args.max_results || 20);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_read': {
+      const result = await gmail.readEmail(auth, args.message_id, args.format || 'full');
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_get_attachments': {
+      const result = await gmail.getEmailAttachments(auth, args.message_id);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_download_attachment': {
+      const result = await gmail.downloadAttachment(auth, args.message_id, args.attachment_id);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_get_labels': {
+      const result = await gmail.getLabels(auth);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_send': {
+      const result = await gmail.sendEmail(auth, args.to, args.subject, args.body, args.cc || null, args.bcc || null);
+      return { content: [{ type: 'text', text: `Sent email to ${args.to}\nMessage ID: ${result.id}` }] };
+    }
+    case 'gmail_delete': {
+      const result = await gmail.deleteEmail(auth, args.message_id);
+      return { content: [{ type: 'text', text: `Permanently deleted email ${result.deleted}` }] };
+    }
+    case 'gmail_trash': {
+      const result = await gmail.trashEmail(auth, args.message_id);
+      return { content: [{ type: 'text', text: `Moved email ${result.id} to trash` }] };
+    }
+    case 'gmail_modify_labels': {
+      const result = await gmail.modifyLabels(auth, args.message_id, args.add_labels || [], args.remove_labels || []);
+      return { content: [{ type: 'text', text: `Modified labels for email ${result.id}` }] };
     }
     default:
       return null;

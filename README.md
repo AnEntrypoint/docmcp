@@ -5,7 +5,12 @@ Google Docs and Sheets MCP server. 40 tools for docs, sheets, and apps script.
 ## Setup
 
 ```bash
+# Using npm
 npm install
+
+# Using bun (recommended)
+bun install
+
 export GOOGLE_OAUTH_CLIENT_ID="your-client-id"
 export GOOGLE_OAUTH_CLIENT_SECRET="your-client-secret"
 npx docmcp auth login
@@ -26,6 +31,17 @@ npx docmcp auth login
     }
   }
 }
+```
+
+## Usage with Bun
+
+```bash
+# Run the MCP server with bun
+bun run stdio-server.js
+
+# Execute CLI commands with bun
+bun x docmcp auth login
+bun x docmcp docs list
 ```
 
 Tokens stored at `~/.config/gcloud/docmcp/token.json`.

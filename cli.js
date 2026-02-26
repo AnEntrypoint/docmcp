@@ -12,6 +12,12 @@ import * as gmail from './gmail.js';
 
 const TOKEN_FILE = path.join(os.homedir(), '.config', 'gcloud', 'docmcp', 'token.json');
 
+function loadConfig() {
+  const configFile = path.join(os.homedir(), '.config', 'gcloud', 'docmcp', 'config.json');
+  if (!fs.existsSync(configFile)) return null;
+  return JSON.parse(fs.readFileSync(configFile, 'utf8'));
+}
+
 function loadTokens() {
   if (!fs.existsSync(TOKEN_FILE)) return null;
   return JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
@@ -19,11 +25,12 @@ function loadTokens() {
 
 function getAuth() {
   const tokens = loadTokens();
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || tokens?.client_id;
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || tokens?.client_secret;
+  const config = loadConfig();
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || config?.client_id;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || config?.client_secret;
   
   if (!clientId || !clientSecret) {
-    console.error('Error: GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET required');
+    console.error('Error: Set GOOGLE_OAUTH_CLIENT_ID/SECRET or create ~/.config/gcloud/docmcp/config.json with client_id and client_secret');
     process.exit(1);
   }
   if (!tokens) {
@@ -140,12 +147,12 @@ Commands:
       const http = await import('http');
       const { OAuth2Client } = await import('google-auth-library');
       
-      const tokens = loadTokens();
-      const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || tokens?.client_id;
-      const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || tokens?.client_secret;
+      const config = loadConfig();
+      const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || config?.client_id;
+      const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || config?.client_secret;
       
       if (!clientId || !clientSecret) {
-        console.error('Error: No OAuth credentials. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET');
+        console.error('Error: No OAuth credentials. Set GOOGLE_OAUTH_CLIENT_ID/SECRET or create ~/.config/gcloud/docmcp/config.json with client_id and client_secret');
         process.exit(1);
       }
       
@@ -197,8 +204,6 @@ Commands:
         
         try {
           const { tokens: newTokens } = await client.getToken(code);
-          newTokens.client_id = clientId;
-          newTokens.client_secret = clientSecret;
           
           const configDir = path.join(os.homedir(), '.config', 'gcloud', 'docmcp');
           fs.mkdirSync(configDir, { recursive: true });
@@ -241,17 +246,15 @@ Commands:
       const code = args[2];
       const { OAuth2Client } = await import('google-auth-library');
       
-      const tokens = loadTokens();
-      const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || tokens?.client_id;
-      const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || tokens?.client_secret;
+      const config = loadConfig();
+      const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || config?.client_id;
+      const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || config?.client_secret;
       const redirectUri = args[3] || 'http://localhost:9998/callback';
       
       const client = new OAuth2Client(clientId, clientSecret, redirectUri);
       
       try {
         const { tokens: newTokens } = await client.getToken(code);
-        newTokens.client_id = clientId;
-        newTokens.client_secret = clientSecret;
         
         const configDir = path.join(os.homedir(), '.config', 'gcloud', 'docmcp');
         fs.mkdirSync(configDir, { recursive: true });

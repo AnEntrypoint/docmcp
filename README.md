@@ -11,8 +11,17 @@ npm install
 # Using bun (recommended)
 bun install
 
+# Option 1: Environment variables
 export GOOGLE_OAUTH_CLIENT_ID="your-client-id"
 export GOOGLE_OAUTH_CLIENT_SECRET="your-client-secret"
+npx docmcp auth login
+
+# Option 2: Local config file
+# Create ~/.config/gcloud/docmcp/config.json with:
+# {
+#   "client_id": "your-client-id",
+#   "client_secret": "your-client-secret"
+# }
 npx docmcp auth login
 ```
 

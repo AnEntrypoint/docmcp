@@ -26,6 +26,12 @@ const SCOPES = [
   'https://www.googleapis.com/auth/gmail.modify'
 ];
 
+function loadConfig() {
+  const configFile = path.join(os.homedir(), '.config', 'gcloud', 'docmcp', 'config.json');
+  if (!fs.existsSync(configFile)) return null;
+  return JSON.parse(fs.readFileSync(configFile, 'utf8'));
+}
+
 function loadTokens() {
   if (!fs.existsSync(TOKEN_FILE)) return null;
   return JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
@@ -49,10 +55,11 @@ async function getAuth() {
     return client;
   }
   
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const config = loadConfig();
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || config?.client_id;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || config?.client_secret;
   if (!clientId || !clientSecret) {
-    throw new Error('No auth configured. Set GOOGLE_OAUTH_CLIENT_ID/SECRET or use gcloud auth application-default login');
+    throw new Error('No auth configured. Set GOOGLE_OAUTH_CLIENT_ID/SECRET or create ~/.config/gcloud/docmcp/config.json with client_id and client_secret');
   }
 
   if (!tokens) {

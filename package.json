@@ -3,30 +3,37 @@
   "version": "1.0.0",
   "description": "Google Docs/Sheets MCP Server with Agent Skills",
   "type": "module",
-  "main": "stdio-server.js",
+  "main": "http-server.js",
   "bin": {
     "docmcp": "cli.js",
-    "docmcp-mcp": "stdio-server.js"
+    "docmcp-mcp": "stdio-server.js",
+    "docmcp-http": "http-server.js"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
-    "start": "node stdio-server.js",
-    "bun:start": "bun run stdio-server.js",
+    "start": "node http-server.js --port 3000 --host 0.0.0.0",
+    "http": "node http-server.js",
+    "bun:start": "bun run http-server.js --port 3000 --host 0.0.0.0",
+    "bun:http": "bun run http-server.js",
     "bun:install": "bun install"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0",
     "google-auth-library": "^10.3.0",
-    "googleapis": "^144.0.0"
+    "googleapis": "^144.0.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "open": "^10.0.3"
   },
   "agents": {
     "docmcp": "skills/docmcp"
   },
   "files": [
-    "cli.js",
-    "stdio-server.js",
+     "cli.js",
+     "stdio-server.js",
+     "http-server.js",
     "docs.js",
     "docs-core.js",
     "docs-edit.js",

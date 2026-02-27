@@ -92,12 +92,20 @@ class AuthenticatedHTTPServer {
         status: 'ok',
         service: 'docmcp-http-server',
         version: '1.0.0',
+        description: 'Google Workspace MCP Server with OAuth authentication',
         endpoints: {
-          login: '/auth/login',
-          callback: '/auth/callback',
-          sse: '/sse/:sessionId',
-          message: '/message',
-          status: '/status'
+          auth_login: '/auth/login (GET) - Browser-based OAuth flow',
+          auth_callback: '/auth/callback (GET) - OAuth callback endpoint',
+          auth_token: '/auth/token (POST) - API token authentication for CLI/tools',
+          auth_info: '/auth/info (GET) - Learn how to authenticate',
+          sse: '/sse/:sessionId (GET) - SSE streaming endpoint',
+          message: '/message (POST) - Message transmission endpoint',
+          status: '/status (GET) - Server status'
+        },
+        quick_start: {
+          browser_users: 'GET /auth/login then use sessionId with /sse/:sessionId',
+          api_clients: 'POST /auth/token with Google OAuth token then use /sse/:sessionId',
+          learn_more: 'GET /auth/info for detailed authentication guide'
         },
         activeSessions: this.sessionMap.size,
         activeConnections: this.transportMap.size
@@ -117,6 +125,12 @@ class AuthenticatedHTTPServer {
     // Authentication routes
     this.app.get('/auth/login', (req, res) => this.handleLogin(req, res));
     this.app.get('/auth/callback', (req, res) => this.handleCallback(req, res));
+
+    // API token authentication - for CLI/programmatic access
+    this.app.post('/auth/token', express.json(), (req, res) => this.handleTokenAuth(req, res));
+
+    // Get authentication info for configured MCP client
+    this.app.get('/auth/info', (req, res) => this.handleAuthInfo(req, res));
 
     // SSE connection with session context
     this.app.get('/sse/:sessionId', sessionContextMiddleware, (req, res) => this.handleSSEConnection(req, res));
@@ -347,6 +361,165 @@ class AuthenticatedHTTPServer {
     }
   }
 
+  async handleTokenAuth(req, res) {
+    try {
+      const { code, state } = req.body;
+
+      if (!code) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing authorization code',
+          message: 'OAuth authorization code is required. Redirect user to /auth/login first.',
+          instructions: [
+            'Step 1: Redirect user to GET /auth/login',
+            'Step 2: User authenticates with Google and receives sessionId',
+            'Step 3: For programmatic access, exchange code for session using this endpoint'
+          ]
+        });
+      }
+
+      // Exchange authorization code for tokens (same as browser callback)
+      await this.loadCredentials();
+      this.oAuth2Client = this.createOAuth2Client();
+
+      const { tokens } = await this.oAuth2Client.getToken(code);
+
+      // Create authenticated session
+      const sessionId = crypto.randomBytes(16).toString('hex');
+
+      this.sessionMap.set(sessionId, {
+        status: 'authenticated',
+        tokens: tokens,
+        createdAt: Date.now(),
+        authMethod: 'oauth_code_exchange',
+        source: 'external_client'
+      });
+
+      // Create auth client with tokens
+      const oAuth2Client = this.createOAuth2Client();
+      oAuth2Client.setCredentials(tokens);
+      this.userAuthMap.set(sessionId, oAuth2Client);
+
+      console.log(`OAuth-authenticated session created for external client: ${sessionId}`);
+
+      res.json({
+        success: true,
+        message: 'OAuth authentication successful',
+        sessionId: sessionId,
+        sse_endpoint: `/sse/${sessionId}`,
+        message_endpoint: '/message',
+        credentials: {
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || 'none',
+          expiry_date: tokens.expiry_date,
+          token_type: tokens.token_type
+        },
+        instructions: [
+          `1. Use sessionId in subsequent requests`,
+          `2. Connect to SSE: GET /sse/${sessionId}`,
+          `3. Send messages to: POST /message with X-Session-Id header or sessionId query param`,
+          `4. Reference: https://docmcp.acc.l-inc.co.za/auth/info for full documentation`
+        ]
+      });
+    } catch (error) {
+      console.error('OAuth Code Exchange Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'OAuth code exchange failed',
+        message: error.message,
+        resolution: 'Ensure authorization code is valid and not expired (codes expire after 10 minutes)'
+      });
+    }
+  }
+
+  async handleAuthInfo(req, res) {
+    try {
+      // Return information about how to authenticate
+      await this.loadCredentials();
+
+      res.json({
+        service: 'docmcp-http-server',
+        version: '1.0.0',
+        authentication_methods: {
+          browser_oauth: {
+            description: 'OAuth via browser - recommended for interactive users',
+            flow: [
+              '1. User visits GET /auth/login',
+              '2. Redirected to Google OAuth consent screen',
+              '3. After approval, redirected to /auth/callback with authorization code',
+              '4. Server exchanges code for tokens and returns sessionId'
+            ],
+            endpoint: '/auth/login',
+            result: 'sessionId for SSE connection'
+          },
+          programmatic_oauth: {
+            description: 'OAuth for CLI tools and external MCP clients',
+            flow: [
+              '1. Tool/client directs user to GET /auth/login to start OAuth',
+              '2. User authenticates and approves access',
+              '3. Google redirects with authorization code',
+              '4. Tool/client sends code to POST /auth/token',
+              '5. Server exchanges code for tokens and returns sessionId'
+            ],
+            endpoint: '/auth/token',
+            method: 'POST',
+            payload: {
+              code: 'authorization_code_from_oauth_flow',
+              state: 'optional_state_parameter'
+            },
+            result: 'sessionId + credentials for subsequent calls'
+          }
+        },
+        sse_connection: {
+          description: 'SSE streaming endpoint - connect after getting sessionId',
+          endpoint: '/sse/:sessionId',
+          message_endpoint: '/message',
+          session_id_sources: [
+            'URL parameter: /sse/{sessionId}',
+            'Query parameter: /sse?sessionId={sessionId}',
+            'Header: X-Session-Id: {sessionId}'
+          ]
+        },
+        mcp_configuration: {
+          server_name: 'docmcp',
+          transport: 'sse',
+          tools_count: 52,
+          google_workspace_apis: [
+            'Google Docs',
+            'Google Sheets',
+            'Google Drive',
+            'Gmail',
+            'Apps Script'
+          ]
+        },
+        setup_instructions: {
+          'for_claude_code': [
+            '1. User authenticates via: GET /auth/login (opens Google OAuth)',
+            '2. After approval, user receives sessionId from /auth/callback',
+            '3. Configure MCP server with: { "command": "sse", "url": "http://SERVER:PORT/sse/:sessionId", "transport": "sse" }',
+            '4. Claude Code uses sessionId to connect to /sse/:sessionId endpoint'
+          ],
+          'for_cli_and_external_tools': [
+            '1. Direct user to: GET http://SERVER:PORT/auth/login',
+            '2. User authenticates with Google OAuth',
+            '3. Capture authorization code from OAuth response',
+            '4. POST /auth/token with { code: "...", state: "..." }',
+            '5. Receive sessionId in response',
+            '6. Use sessionId to connect to /sse/:sessionId for SSE streaming',
+            '7. All tool calls are OAuth-authenticated via user\'s Google credentials'
+          ]
+        }
+      });
+    } catch (error) {
+      console.error('Auth Info Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Could not retrieve auth info',
+        message: error.message
+      });
+    }
+  }
+
   async handleSSEConnection(req, res) {
     const sessionId = req.sessionId;
     const session = this.sessionMap.get(sessionId);
@@ -435,23 +608,29 @@ class AuthenticatedHTTPServer {
     return new Promise((resolve, reject) => {
       this.httpServer = http.createServer(this.app);
       this.httpServer.listen(this.port, this.host, () => {
-        console.log(`HTTP Streaming Server running on http://${this.host}:${this.port}`);
-        console.log(`- Health check: http://${this.host}:${this.port}/`);
-        console.log(`- Login endpoint: http://${this.host}:${this.port}/auth/login`);
-        console.log(`- Callback endpoint: http://${this.host}:${this.port}/auth/callback`);
-        console.log(`- SSE endpoint: http://${this.host}:${this.port}/sse/:sessionId`);
-        console.log(`- Message endpoint: http://${this.host}:${this.port}/message`);
-        console.log(`- Status endpoint: http://${this.host}:${this.port}/status`);
+        console.log(`\n🚀 HTTP Streaming MCP Server running on http://${this.host}:${this.port}`);
+        console.log(`\n📍 API Endpoints:`);
+        console.log(`  Health check: http://${this.host}:${this.port}/`);
+        console.log(`  Auth info: http://${this.host}:${this.port}/auth/info`);
+        console.log(`  Browser OAuth: http://${this.host}:${this.port}/auth/login`);
+        console.log(`  OAuth callback: http://${this.host}:${this.port}/auth/callback`);
+        console.log(`  API token auth: POST http://${this.host}:${this.port}/auth/token`);
+        console.log(`  SSE endpoint: http://${this.host}:${this.port}/sse/:sessionId`);
+        console.log(`  Message endpoint: POST http://${this.host}:${this.port}/message`);
+        console.log(`\n🔐 OAuth Configuration:`);
+        console.log(`  Redirect URI: ${getRedirectUri(this.host, this.port)}`);
+        console.log(`  CORS Origin: ${this.corsOrigin}`);
+        console.log(`\n📊 MCP Configuration:`);
+        console.log(`  Server Name: docmcp`);
+        console.log(`  Tools: 52 Google Workspace operations`);
+        console.log(`  Transport: HTTP SSE (Server-Sent Events)`);
+        console.log(`  Authentication: OAuth 2.0 (browser + API token)`);
+        console.log(`\n💡 Quick Start:`);
+        console.log(`  1. Browser users: Visit http://${this.host}:${this.port}/auth/login`);
+        console.log(`  2. CLI/Tools: POST /auth/token with Google OAuth access token`);
+        console.log(`  3. Then connect to: /sse/:sessionId for streaming`);
+        console.log(`  4. For full guide: GET http://${this.host}:${this.port}/auth/info`);
         console.log('');
-        console.log(`OAuth Configuration:`);
-        console.log(`- Redirect URI: ${getRedirectUri(this.host, this.port)}`);
-        console.log(`- CORS Origin: ${this.corsOrigin}`);
-        console.log('');
-        console.log('To use the server:');
-        console.log('1. GET /auth/login - to start Google OAuth flow');
-        console.log('2. Complete authentication in browser');
-        console.log('3. Use /sse/:sessionId for streaming communication');
-        console.log('4. Use /message for message transmission (with sessionId query parameter)');
         resolve();
       }).on('error', (err) => {
         if (err.code === 'EADDRINUSE') {

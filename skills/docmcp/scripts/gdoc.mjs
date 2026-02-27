@@ -5,6 +5,7 @@ import * as docsExtra from './docs-extra.mjs';
 import * as sheets from './sheets.mjs';
 import * as sheetsExtra from './sheets-extra.mjs';
 import * as scripts from './apps-script.mjs';
+import * as gmail from './gmail.mjs';
 
 const COMMANDS = {
   'docs.create': (a, p) => docs.create(a, p),
@@ -50,6 +51,19 @@ const COMMANDS = {
   'scripts.delete': (a, p) => scripts.deleteScript(a, p),
   'scripts.run': (a, p) => scripts.runScript(a, p),
   'scripts.sync': (a, p) => scripts.syncScripts(a, p),
+  'gmail.list_messages': (a, p) => gmail.listMessages(a, p),
+  'gmail.get_message': (a, p) => gmail.getMessage(a, p),
+  'gmail.send_message': (a, p) => gmail.sendMessage(a, p),
+  'gmail.list_threads': (a, p) => gmail.listThreads(a, p),
+  'gmail.get_thread': (a, p) => gmail.getThread(a, p),
+  'gmail.modify_message': (a, p) => gmail.modifyMessage(a, p),
+  'gmail.mark_as_read': (a, p) => gmail.markAsRead(a, p),
+  'gmail.mark_as_unread': (a, p) => gmail.markAsUnread(a, p),
+  'gmail.trash_message': (a, p) => gmail.trashMessage(a, p),
+  'gmail.untrash_message': (a, p) => gmail.untrashMessage(a, p),
+  'gmail.delete_message': (a, p) => gmail.deleteMessage(a, p),
+  'gmail.list_labels': (a, p) => gmail.listLabels(a, p),
+  'gmail.get_label': (a, p) => gmail.getLabel(a, p),
 };
 
 async function main() {

@@ -1,6 +1,6 @@
 ---
 name: docmcp
-description: Google Docs, Sheets, Drive, and Apps Script operations. Use when creating, reading, editing, or formatting Google Docs and Sheets. Use when searching Google Drive. Use when managing Apps Script projects.
+description: Google Docs, Sheets, Drive, Apps Script, and Gmail operations. Use when creating, reading, editing, or formatting Google Docs and Sheets. Use when searching Google Drive. Use when managing Apps Script projects. Use when sending, receiving, and managing Gmail messages.
 allowed-tools: Bash(node *), Bash(npx *), Read, Glob
 ---
 
@@ -88,6 +88,24 @@ This prints an auth URL. The user visits it, authorizes, and tokens are saved au
 | `scripts.delete` | `{"sheet_id": "...", "script": "..."}` | Remove script tracking |
 | `scripts.run` | `{"sheet_id": "...", "script": "...", "function_name": "...", "parameters": []}` | Execute script function |
 | `scripts.sync` | `{"sheet_id": "..."}` | Sync and verify scripts |
+
+### Gmail
+
+| Command | JSON Args | Description |
+|---------|-----------|-------------|
+| `gmail.list_messages` | `{"query": "...", "max_results": 10}` | List messages (query examples: "from:example@example.com", "is:unread", "subject:meeting") |
+| `gmail.get_message` | `{"message_id": "...", "format": "full"}` | Get message details (format: full, minimal, raw, metadata) |
+| `gmail.send_message` | `{"to": "...", "subject": "...", "body": "...", "from": "...", "cc": ["..."], "bcc": ["..."]}` | Send email |
+| `gmail.list_threads` | `{"query": "...", "max_results": 10}` | List threads |
+| `gmail.get_thread` | `{"thread_id": "...", "format": "full"}` | Get thread details |
+| `gmail.modify_message` | `{"message_id": "...", "add_labels": ["..."], "remove_labels": ["..."]}` | Modify message labels |
+| `gmail.mark_as_read` | `{"message_id": "..."}` | Mark message as read |
+| `gmail.mark_as_unread` | `{"message_id": "..."}` | Mark message as unread |
+| `gmail.trash_message` | `{"message_id": "..."}` | Move message to trash |
+| `gmail.untrash_message` | `{"message_id": "..."}` | Restore message from trash |
+| `gmail.delete_message` | `{"message_id": "..."}` | Permanently delete message |
+| `gmail.list_labels` | `{}` | List all Gmail labels |
+| `gmail.get_label` | `{"label_id": "..."}` | Get label details |
 
 ## Usage Pattern
 

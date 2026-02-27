@@ -253,3 +253,87 @@ node ~/.claude/skills/docmcp/scripts/gdoc.mjs scripts.run '{"sheet_id":"1abc...x
 ```bash
 node ~/.claude/skills/docmcp/scripts/gdoc.mjs scripts.sync '{"sheet_id":"1abc...xyz"}'
 ```
+
+---
+
+## Gmail
+
+### List unread messages
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.list_messages '{"query":"is:unread","max_results":5}'
+```
+
+### Get message details
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.get_message '{"message_id":"12345abcde"}'
+```
+
+### Send an email
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.send_message '{"to":"recipient@example.com","subject":"Hello from Gmail API","body":"This is a test email sent via the Gmail API."}'
+```
+
+### Send HTML email
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.send_message '{"to":"recipient@example.com","subject":"HTML Email","body":"<html><body><h1>Hello!</h1><p>This is an <b>HTML</b> email.</p></body></html>"}'
+```
+
+### Send email with CC and BCC
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.send_message '{"to":"recipient@example.com","subject":"Meeting Reminder","body":"Don'\''t forget the meeting tomorrow!","cc":["cc@example.com","another@example.com"],"bcc":["bcc@example.com"]}'
+```
+
+### Mark message as read
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.mark_as_read '{"message_id":"12345abcde"}'
+```
+
+### Mark message as unread
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.mark_as_unread '{"message_id":"12345abcde"}'
+```
+
+### Move message to trash
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.trash_message '{"message_id":"12345abcde"}'
+```
+
+### Restore message from trash
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.untrash_message '{"message_id":"12345abcde"}'
+```
+
+### Permanently delete message
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.delete_message '{"message_id":"12345abcde"}'
+```
+
+### List all labels
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.list_labels '{}'
+```
+
+### Get label details
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.get_label '{"label_id":"Label_12345"}'
+```
+
+### Add label to message
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.modify_message '{"message_id":"12345abcde","add_labels":["Label_12345"]}'
+```
+
+### Remove label from message
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.modify_message '{"message_id":"12345abcde","remove_labels":["Label_12345"]}'
+```
+
+### List messages from specific sender
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.list_messages '{"query":"from:example@example.com","max_results":10}'
+```
+
+### List messages with specific subject
+```bash
+node ~/.claude/skills/docmcp/scripts/gdoc.mjs gmail.list_messages '{"query":"subject:meeting","max_results":5}'
+```

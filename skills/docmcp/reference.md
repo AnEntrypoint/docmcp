@@ -341,3 +341,95 @@ Execute a function in a script.
 ### scripts.sync
 Verify all tracked scripts and remove stale entries.
 - `sheet_id` (string, required): Spreadsheet ID
+
+---
+
+## Gmail Operations
+
+### gmail.list_messages
+List Gmail messages based on search query.
+- `query` (string, required): Search query (e.g., "from:example@example.com is:unread", "subject:meeting", "has:attachment")
+- `max_results` (number, default 10): Maximum number of messages to return
+
+Returns: Array of `{ id, threadId }`
+
+### gmail.get_message
+Get detailed message information.
+- `message_id` (string, required): Gmail message ID
+- `format` (string, default "full"): Response format - "full", "minimal", "raw", or "metadata"
+
+Returns: Message object with details including payload, headers, and body content.
+
+### gmail.send_message
+Send an email message.
+- `to` (string, required): Recipient email address
+- `subject` (string, required): Email subject
+- `body` (string, required): Email body (HTML or plain text)
+- `from` (string, optional): Sender name (e.g., "John Doe <john@example.com>")
+- `cc` (array, optional): CC recipient email addresses
+- `bcc` (array, optional): BCC recipient email addresses
+
+Returns: `{ id, threadId, labelIds }`
+
+### gmail.list_threads
+List Gmail threads based on search query.
+- `query` (string, required): Search query
+- `max_results` (number, default 10): Maximum number of threads to return
+
+Returns: Array of `{ id, snippet }`
+
+### gmail.get_thread
+Get detailed thread information.
+- `thread_id` (string, required): Gmail thread ID
+- `format` (string, default "full"): Response format
+
+Returns: Thread object with all messages in the thread.
+
+### gmail.modify_message
+Modify labels on a message.
+- `message_id` (string, required): Message ID to modify
+- `add_labels` (array, optional): Labels to add (use label IDs, not names)
+- `remove_labels` (array, optional): Labels to remove (use label IDs, not names)
+
+Returns: Modified message object.
+
+### gmail.mark_as_read
+Mark a message as read.
+- `message_id` (string, required): Message ID to mark as read
+
+Returns: Modified message object.
+
+### gmail.mark_as_unread
+Mark a message as unread.
+- `message_id` (string, required): Message ID to mark as unread
+
+Returns: Modified message object.
+
+### gmail.trash_message
+Move a message to the trash.
+- `message_id` (string, required): Message ID to trash
+
+Returns: Trashed message object.
+
+### gmail.untrash_message
+Restore a message from the trash.
+- `message_id` (string, required): Message ID to untrash
+
+Returns: Untrashed message object.
+
+### gmail.delete_message
+Permanently delete a message.
+- `message_id` (string, required): Message ID to delete
+
+Returns: Empty object on success.
+
+### gmail.list_labels
+List all Gmail labels.
+
+Returns: Array of label objects with `id`, `name`, `type`, and other properties.
+
+### gmail.get_label
+Get detailed label information.
+- `label_id` (string, required): Label ID
+
+Returns: Label object with details.

@@ -813,7 +813,7 @@ class AuthenticatedHTTPServer {
                     <h3>Next Steps</h3>
                     <ol>
                         <li>Use this Session ID in your MCP client configuration</li>
-                        <li>Connect to the SSE endpoint: <code>/sse/${state}</code></li>
+                        <li>Connect to the Streamable HTTP endpoint: <code>/mcp</code> with sessionId parameter</li>
                         <li>Start using the 52+ Google Workspace tools available</li>
                     </ol>
                 </div>

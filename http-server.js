@@ -95,17 +95,15 @@ class AuthenticatedHTTPServer {
         version: '1.0.0',
         description: 'Google Workspace MCP Server with OAuth authentication',
         endpoints: {
-          auth_login: '/auth/login (GET) - Browser-based OAuth flow',
+          login: '/login (GET) - Start OAuth flow',
           auth_callback: '/auth/callback (GET) - OAuth callback endpoint',
           auth_token: '/auth/token (POST) - API token authentication for CLI/tools',
-          auth_info: '/auth/info (GET) - Learn how to authenticate',
           mcp: '/mcp (ALL) - Streamable HTTP transport endpoint',
           status: '/status (GET) - Server status'
         },
         quick_start: {
-          browser_users: 'GET /auth/login then use sessionId with /mcp',
-          api_clients: 'POST /auth/token with Google OAuth token then use /mcp',
-          learn_more: 'GET /auth/info for detailed authentication guide'
+          browser_users: 'GET /login - Authenticate and automatically connect to /mcp',
+          api_clients: 'POST /auth/token with Google OAuth code, then connect to /mcp with sessionId'
         },
         activeSessions: this.sessionMap.size,
         activeConnections: this.transportMap.size
@@ -123,14 +121,11 @@ class AuthenticatedHTTPServer {
     });
 
     // Authentication routes
-    this.app.get('/auth/login', (req, res) => this.handleLogin(req, res));
+    this.app.get('/login', (req, res) => this.handleLogin(req, res));
     this.app.get('/auth/callback', (req, res) => this.handleCallback(req, res));
 
     // API token authentication - for CLI/programmatic access
     this.app.post('/auth/token', express.json(), (req, res) => this.handleTokenAuth(req, res));
-
-    // Get authentication info for configured MCP client
-    this.app.get('/auth/info', (req, res) => this.handleAuthInfo(req, res));
 
     // Streamable HTTP transport endpoint
     this.app.all('/mcp', sessionContextMiddleware, (req, res) => this.handleStreamableHttpConnection(req, res));
@@ -522,7 +517,7 @@ class AuthenticatedHTTPServer {
                 <div class="error-details">
                     <pre>${error}</pre>
                 </div>
-                <a href="/auth/login" class="back-button">Try Again</a>
+                <a href="/login" class="back-button">Try Again</a>
             </div>
         </body>
         </html>
@@ -569,7 +564,7 @@ class AuthenticatedHTTPServer {
                 <div class="error-icon">⚠️</div>
                 <h1 class="title">Invalid Request</h1>
                 <p class="subtitle">Missing code or state parameter</p>
-                <a href="/auth/login" class="back-button">Try Again</a>
+                <a href="/login" class="back-button">Try Again</a>
             </div>
         </body>
         </html>
@@ -617,7 +612,7 @@ class AuthenticatedHTTPServer {
                 <div class="error-icon">⏰</div>
                 <h1 class="title">Session Expired</h1>
                 <p class="subtitle">Session not found or has expired</p>
-                <a href="/auth/login" class="back-button">Try Again</a>
+                <a href="/login" class="back-button">Try Again</a>
             </div>
         </body>
         </html>
@@ -626,7 +621,7 @@ class AuthenticatedHTTPServer {
 
     try {
       const { tokens } = await this.oAuth2Client.getToken(code);
-      
+
       // Update session with user's tokens
       session.status = 'authenticated';
       session.tokens = tokens;
@@ -634,214 +629,8 @@ class AuthenticatedHTTPServer {
 
       console.log(`Session authenticated: ${state}`);
 
-      // Return HTML success page
-      res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>docmcp - Authentication Successful</title>
-            <style>
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }
-                
-                body {
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    min-height: 100vh;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    padding: 20px;
-                }
-                
-                .container {
-                    background: white;
-                    border-radius: 20px;
-                    padding: 40px;
-                    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-                    max-width: 500px;
-                    width: 100%;
-                    text-align: center;
-                }
-                
-                .success-icon {
-                    font-size: 80px;
-                    color: #4CAF50;
-                    margin-bottom: 20px;
-                }
-                
-                .title {
-                    font-size: 28px;
-                    color: #333;
-                    margin-bottom: 10px;
-                }
-                
-                .subtitle {
-                    font-size: 16px;
-                    color: #666;
-                    margin-bottom: 30px;
-                    line-height: 1.5;
-                }
-                
-                .session-info {
-                    background: #f5f7fa;
-                    border-radius: 10px;
-                    padding: 20px;
-                    margin: 20px 0;
-                    text-align: left;
-                }
-                
-                .session-info label {
-                    font-weight: bold;
-                    color: #333;
-                    display: block;
-                    margin-bottom: 5px;
-                    font-size: 14px;
-                }
-                
-                .session-info code {
-                    background: #e8e8e8;
-                    padding: 8px 12px;
-                    border-radius: 4px;
-                    font-family: 'Courier New', monospace;
-                    font-size: 13px;
-                    color: #333;
-                    word-break: break-all;
-                    display: block;
-                    margin-bottom: 10px;
-                }
-                
-                .copy-button {
-                    background: #667eea;
-                    color: white;
-                    border: none;
-                    padding: 8px 16px;
-                    font-size: 12px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    transition: background 0.3s ease;
-                    margin-top: 5px;
-                }
-                
-                .copy-button:hover {
-                    background: #5a6fd8;
-                }
-                
-                .copy-button.copied {
-                    background: #4CAF50;
-                }
-                
-                .instructions {
-                    text-align: left;
-                    margin-top: 30px;
-                    padding: 20px;
-                    background: #fff3cd;
-                    border-radius: 10px;
-                    border-left: 4px solid #ffc107;
-                }
-                
-                .instructions h3 {
-                    font-size: 16px;
-                    color: #856404;
-                    margin-bottom: 15px;
-                }
-                
-                .instructions ol {
-                    padding-left: 20px;
-                    color: #555;
-                    line-height: 1.6;
-                }
-                
-                .instructions li {
-                    margin-bottom: 10px;
-                    font-size: 14px;
-                }
-                
-                .continue-button {
-                    background: #4CAF50;
-                    color: white;
-                    border: none;
-                    padding: 15px 30px;
-                    font-size: 16px;
-                    font-weight: bold;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                    text-decoration: none;
-                    display: inline-block;
-                    margin-top: 20px;
-                }
-                
-                .continue-button:hover {
-                    background: #45a049;
-                    transform: translateY(-2px);
-                    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
-                }
-                
-                @media (max-width: 600px) {
-                    .container {
-                        padding: 30px 20px;
-                    }
-                    
-                    .title {
-                        font-size: 24px;
-                    }
-                    
-                    .subtitle {
-                        font-size: 14px;
-                    }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="success-icon">🎉</div>
-                <h1 class="title">Authentication Successful!</h1>
-                <p class="subtitle">You are now connected to docmcp with your Google Workspace account</p>
-                
-                <div class="session-info">
-                    <label>Session ID</label>
-                    <code id="sessionId">${state}</code>
-                    <button class="copy-button" onclick="copyText('${state}')">Copy Session ID</button>
-                </div>
-                
-                <div class="instructions">
-                    <h3>Next Steps</h3>
-                    <ol>
-                        <li>Use this Session ID in your MCP client configuration</li>
-                        <li>Connect to the Streamable HTTP endpoint: <code>/mcp</code> with sessionId parameter</li>
-                        <li>Start using the 52+ Google Workspace tools available</li>
-                    </ol>
-                </div>
-                
-                <a href="/" class="continue-button">
-                    ← Return to Home
-                </a>
-            </div>
-            
-            <script>
-                function copyText(text) {
-                    navigator.clipboard.writeText(text).then(() => {
-                        const button = event.target;
-                        const originalText = button.textContent;
-                        button.textContent = 'Copied!';
-                        button.classList.add('copied');
-                        
-                        setTimeout(() => {
-                            button.textContent = originalText;
-                            button.classList.remove('copied');
-                        }, 2000);
-                    });
-                }
-            </script>
-        </body>
-        </html>
-      `);
+      // Redirect to /mcp endpoint to start Streamable HTTP connection
+      res.redirect(302, `/mcp?sessionId=${state}`);
     } catch (error) {
       console.error('Token Exchange Error:', error);
       res.status(500).json({
@@ -897,8 +686,7 @@ class AuthenticatedHTTPServer {
         success: true,
         message: 'OAuth authentication successful',
         sessionId: sessionId,
-        sse_endpoint: `/sse/${sessionId}`,
-        message_endpoint: '/message',
+        mcp_endpoint: '/mcp',
         credentials: {
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token || 'none',
@@ -907,9 +695,9 @@ class AuthenticatedHTTPServer {
         },
         instructions: [
           `1. Use sessionId in subsequent requests`,
-          `2. Connect to SSE: GET /sse/${sessionId}`,
-          `3. Send messages to: POST /message with X-Session-Id header or sessionId query param`,
-          `4. Reference: https://docmcp.acc.l-inc.co.za/auth/info for full documentation`
+          `2. Connect to MCP endpoint: GET /mcp?sessionId=${sessionId}`,
+          `3. Transport: Streamable HTTP (supports Claude, ChatGPT, and other MCP clients)`,
+          `4. You are ready to use 52+ Google Workspace tools`
         ]
       });
     } catch (error) {
@@ -923,95 +711,7 @@ class AuthenticatedHTTPServer {
     }
   }
 
-  async handleAuthInfo(req, res) {
-    try {
-      // Return information about how to authenticate
-      await this.loadCredentials();
-
-      res.json({
-        service: 'docmcp-http-server',
-        version: '1.0.0',
-        authentication_methods: {
-          browser_oauth: {
-            description: 'OAuth via browser - recommended for interactive users',
-            flow: [
-              '1. User visits GET /auth/login',
-              '2. Redirected to Google OAuth consent screen',
-              '3. After approval, redirected to /auth/callback with authorization code',
-              '4. Server exchanges code for tokens and returns sessionId'
-            ],
-            endpoint: '/auth/login',
-            result: 'sessionId for Streamable HTTP connection'
-          },
-          programmatic_oauth: {
-            description: 'OAuth for CLI tools and external MCP clients',
-            flow: [
-              '1. Tool/client directs user to GET /auth/login to start OAuth',
-              '2. User authenticates and approves access',
-              '3. Google redirects with authorization code',
-              '4. Tool/client sends code to POST /auth/token',
-              '5. Server exchanges code for tokens and returns sessionId'
-            ],
-            endpoint: '/auth/token',
-            method: 'POST',
-            payload: {
-              code: 'authorization_code_from_oauth_flow',
-              state: 'optional_state_parameter'
-            },
-            result: 'sessionId + credentials for subsequent calls'
-          }
-        },
-        streamable_http_connection: {
-          description: 'Streamable HTTP transport endpoint - connect after getting sessionId',
-          endpoint: '/mcp',
-          methods: ['GET', 'POST'],
-          session_id_sources: [
-            'URL parameter: /mcp?sessionId={sessionId}',
-            'Query parameter: /mcp?sessionId={sessionId}',
-            'Header: X-Session-Id: {sessionId}'
-          ]
-        },
-        mcp_configuration: {
-          server_name: 'docmcp',
-          transport: 'streamable_http',
-          tools_count: 52,
-          google_workspace_apis: [
-            'Google Docs',
-            'Google Sheets',
-            'Google Drive',
-            'Gmail',
-            'Apps Script'
-          ]
-        },
-        setup_instructions: {
-          'for_claude_code': [
-            '1. User authenticates via: GET /auth/login (opens Google OAuth)',
-            '2. After approval, user receives sessionId from /auth/callback',
-            '3. Configure MCP server with: { "command": "streamable_http", "url": "http://SERVER:PORT/mcp", "transport": "streamable_http" }',
-            '4. Claude Code uses sessionId to connect to /mcp endpoint'
-          ],
-          'for_cli_and_external_tools': [
-            '1. Direct user to: GET http://SERVER:PORT/auth/login',
-            '2. User authenticates with Google OAuth',
-            '3. Capture authorization code from OAuth response',
-            '4. POST /auth/token with { code: "...", state: "..." }',
-            '5. Receive sessionId in response',
-            '6. Use sessionId to connect to /mcp for Streamable HTTP',
-            '7. All tool calls are OAuth-authenticated via user\'s Google credentials'
-          ]
-        }
-      });
-    } catch (error) {
-      console.error('Auth Info Error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Could not retrieve auth info',
-        message: error.message
-      });
-    }
-  }
-
-  async handleStreamableHttpConnection(req, res) {
+async handleStreamableHttpConnection(req, res) {
     const sessionId = req.sessionId;
     const session = this.sessionMap.get(sessionId);
 
@@ -1114,12 +814,10 @@ class AuthenticatedHTTPServer {
         console.log(`\n🚀 HTTP Streaming MCP Server running on http://${this.host}:${this.port}`);
         console.log(`\n📍 API Endpoints:`);
         console.log(`  Health check: http://${this.host}:${this.port}/`);
-        console.log(`  Auth info: http://${this.host}:${this.port}/auth/info`);
-        console.log(`  Browser OAuth: http://${this.host}:${this.port}/auth/login`);
+        console.log(`  Browser OAuth: http://${this.host}:${this.port}/login`);
         console.log(`  OAuth callback: http://${this.host}:${this.port}/auth/callback`);
         console.log(`  API token auth: POST http://${this.host}:${this.port}/auth/token`);
-        console.log(`  SSE endpoint: http://${this.host}:${this.port}/sse/:sessionId`);
-        console.log(`  Message endpoint: POST http://${this.host}:${this.port}/message`);
+        console.log(`  Streamable HTTP: http://${this.host}:${this.port}/mcp`);
         console.log(`\n🔐 OAuth Configuration:`);
         console.log(`  Redirect URI: ${getRedirectUri(this.host, this.port)}`);
         console.log(`  CORS Origin: ${this.corsOrigin}`);
@@ -1129,10 +827,10 @@ class AuthenticatedHTTPServer {
         console.log(`  Transport: Streamable HTTP`);
         console.log(`  Authentication: OAuth 2.0 (browser + API token)`);
         console.log(`\n💡 Quick Start:`);
-        console.log(`  1. Browser users: Visit http://${this.host}:${this.port}/auth/login`);
-        console.log(`  2. CLI/Tools: POST /auth/token with Google OAuth access token`);
-        console.log(`  3. Then connect to: /mcp for Streamable HTTP`);
-        console.log(`  4. For full guide: GET http://${this.host}:${this.port}/auth/info`);
+        console.log(`  1. Browser users: Visit http://${this.host}:${this.port}/login`);
+        console.log(`  2. Authenticate with Google to get sessionId`);
+        console.log(`  3. Automatically redirected to /mcp with sessionId`);
+        console.log(`  4. Start using 52+ Google Workspace tools`);
         console.log('');
         resolve();
       }).on('error', (err) => {

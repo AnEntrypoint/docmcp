@@ -713,17 +713,22 @@ class AuthenticatedHTTPServer {
 
 async handleStreamableHttpConnection(req, res) {
     const sessionId = req.sessionId;
-    const session = this.sessionMap.get(sessionId);
-
-    if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-
-    if (session.status !== 'authenticated') {
-      return res.status(401).json({ error: 'Session not authenticated' });
-    }
 
     try {
+      // Validate session exists and is authenticated
+      const session = this.sessionMap.get(sessionId);
+      if (!session) {
+        return res.status(404).set('Content-Type', 'text/event-stream').end(
+          `event: error\ndata: ${JSON.stringify({ error: 'Session not found' })}\n\n`
+        );
+      }
+
+      if (session.status !== 'authenticated') {
+        return res.status(401).set('Content-Type', 'text/event-stream').end(
+          `event: error\ndata: ${JSON.stringify({ error: 'Session not authenticated' })}\n\n`
+        );
+      }
+
       // Check if transport already exists for this session
       let transport = this.transportMap.get(sessionId);
       let server = this.serverMap.get(sessionId);
@@ -770,7 +775,7 @@ async handleStreamableHttpConnection(req, res) {
 
         // Create Streamable HTTP transport for this session (reused for all requests)
         transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => sessionId // Use existing sessionId
+          sessionIdGenerator: () => sessionId
         });
 
         // Store for reuse
@@ -790,13 +795,15 @@ async handleStreamableHttpConnection(req, res) {
         };
       }
 
-      // Handle the request with existing transport
+      // Handle the request with existing transport - let it manage response headers and streaming
       await transport.handleRequest(req, res, req.body);
 
     } catch (error) {
       console.error('Streamable HTTP Connection Error:', error);
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Connection failed', message: error.message });
+        res.status(500).set('Content-Type', 'text/event-stream').end(
+          `event: error\ndata: ${JSON.stringify({ error: 'Connection failed', message: error.message })}\n\n`
+        );
       }
     }
   }

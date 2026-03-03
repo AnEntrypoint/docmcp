@@ -164,6 +164,9 @@ class AuthenticatedHTTPServer {
     // API token authentication - for CLI/programmatic access
     this.app.post('/auth/token', express.json(), (req, res) => this.handleTokenAuth(req, res));
 
+    // Refresh token injection - create authenticated session from refresh_token
+    this.app.post('/auth/refresh', express.json(), (req, res) => this.handleRefreshAuth(req, res));
+
     // Streamable HTTP transport endpoint
     this.app.all('/mcp', sessionContextMiddleware, (req, res) => this.handleStreamableHttpConnection(req, res));
 
@@ -807,6 +810,29 @@ class AuthenticatedHTTPServer {
         message: error.message,
         resolution: 'Ensure authorization code is valid and not expired (codes expire after 10 minutes)'
       });
+    }
+  }
+
+  async handleRefreshAuth(req, res) {
+    try {
+      const { refresh_token } = req.body;
+      if (!refresh_token) {
+        return res.status(400).json({ success: false, error: 'refresh_token required' });
+      }
+      await this.loadCredentials();
+      const oAuth2Client = this.createOAuth2Client();
+      oAuth2Client.setCredentials({ refresh_token });
+      const { credentials } = await oAuth2Client.refreshAccessToken();
+      const sessionId = crypto.randomBytes(16).toString('hex');
+      this.sessionMap.set(sessionId, { status: 'authenticated', tokens: credentials, createdAt: Date.now(), authMethod: 'refresh_token' });
+      const authClient = this.createOAuth2Client();
+      authClient.setCredentials(credentials);
+      this.userAuthMap.set(sessionId, authClient);
+      console.log(`Refresh-token session created: ${sessionId}`);
+      res.json({ success: true, sessionId, mcp_endpoint: `/mcp?sessionId=${sessionId}` });
+    } catch (error) {
+      console.error('Refresh Auth Error:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
   }
 

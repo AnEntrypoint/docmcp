@@ -76,6 +76,14 @@ class AuthenticatedHTTPServer {
     }));
     this.app.use(express.json({ limit: '4mb' }));
     this.app.use(express.urlencoded({ extended: true }));
+
+    this.app.use((req, res, next) => {
+      console.log('[REQ]', req.method, req.path);
+      console.log('[HDR]', JSON.stringify(req.headers));
+      const body = JSON.stringify(req.body);
+      if (body && body !== '{}') console.log('[BOD]', body.slice(0, 500));
+      next();
+    });
   }
 
   initializeRoutes() {
@@ -88,6 +96,29 @@ class AuthenticatedHTTPServer {
       req.sessionId = sessionId;
       next();
     };
+
+    // OAuth protected resource discovery (RFC 9728) - ChatGPT probes this
+    this.app.get('/.well-known/oauth-protected-resource', (req, res) => {
+      const base = this.getBaseUrl() || `https://${req.hostname}`;
+      res.json({
+        resource: base,
+        authorization_servers: [`${base}/.well-known/oauth-authorization-server`],
+        bearer_methods_supported: ['header'],
+        resource_documentation: `${base}/login`
+      });
+    });
+
+    // OAuth authorization server metadata (RFC 8414) - for clients that follow discovery
+    this.app.get('/.well-known/oauth-authorization-server', (req, res) => {
+      const base = this.getBaseUrl() || `https://${req.hostname}`;
+      res.json({
+        issuer: base,
+        authorization_endpoint: `${base}/login`,
+        token_endpoint: `${base}/auth/token`,
+        response_types_supported: ['code'],
+        grant_types_supported: ['authorization_code']
+      });
+    });
 
     // Health check
     this.app.get('/', (req, res) => {
@@ -755,7 +786,7 @@ sendSseError(res, status, error, loginUrl) {
       // Authenticated session: reuse transport
       if (sessionId && this.sessionMap.get(sessionId)?.status === 'authenticated') {
         if (!this.transportMap.has(sessionId)) {
-          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId });
           const server = this.buildMcpServer(sessionId);
           await server.connect(transport);
           transport.onclose = () => {
@@ -771,17 +802,15 @@ sendSseError(res, status, error, loginUrl) {
         return;
       }
 
-      // Unauthenticated GET: open SSE stream (clients probe this first)
+      // Unauthenticated GET: return 401 so clients know auth is required
+      // (hanging SSE here causes ChatGPT to stall indefinitely)
       if (req.method === 'GET') {
-        res.set({
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache, no-transform',
-          'Connection': 'keep-alive',
-          'X-Accel-Buffering': 'no'
+        const base = this.getBaseUrl();
+        return res.status(401).json({
+          error: 'authentication_required',
+          login_url: `${base}/login`,
+          message: 'Please authenticate at /login to get a sessionId, then connect to /mcp?sessionId=<id>'
         });
-        res.flushHeaders();
-        req.on('close', () => {});
-        return;
       }
 
       // Unauthenticated POST: allow initialize through on anonymous transport so
@@ -793,7 +822,7 @@ sendSseError(res, status, error, loginUrl) {
 
         if (isInit) {
           const anonKey = `anon_${crypto.randomBytes(8).toString('hex')}`;
-          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => anonKey });
           const server = this.buildUnauthMcpServer(this.getBaseUrl());
           await server.connect(transport);
           transport.onclose = () => { server.close().catch(() => {}); };

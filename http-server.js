@@ -868,8 +868,15 @@ sendSseError(res, status, error, loginUrl) {
         return;
       }
 
+      // Check if this is a follow-up request to an existing anonymous transport
+      const mcpSessionId = req.headers['mcp-session-id'];
+      if (mcpSessionId && this.transportMap.has(mcpSessionId)) {
+        const transport = this.transportMap.get(mcpSessionId);
+        await transport.handleRequest(req, res, req.body);
+        return;
+      }
+
       // Unauthenticated GET: return 401 so clients know auth is required
-      // (hanging SSE here causes ChatGPT to stall indefinitely)
       if (req.method === 'GET') {
         const base = this.getBaseUrl();
         return res.status(401).json({
@@ -880,8 +887,7 @@ sendSseError(res, status, error, loginUrl) {
       }
 
       // Unauthenticated POST: allow initialize through on anonymous transport so
-      // clients (ChatGPT, etc.) can complete the MCP handshake and receive the
-      // login_url inside the MCP error response.
+      // clients (ChatGPT, etc.) can complete the MCP handshake and discover login URL.
       if (req.method === 'POST') {
         const body = req.body || {};
         const isInit = body.method === 'initialize';
@@ -891,7 +897,12 @@ sendSseError(res, status, error, loginUrl) {
           const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => anonKey });
           const server = this.buildUnauthMcpServer(this.getBaseUrl());
           await server.connect(transport);
-          transport.onclose = () => { server.close().catch(() => {}); };
+          transport.onclose = () => {
+            server.close().catch(() => {});
+            this.transportMap?.delete(anonKey);
+          };
+          this.transportMap.set(anonKey, transport);
+          setTimeout(() => { this.transportMap?.delete(anonKey); }, 5 * 60 * 1000);
           await transport.handleRequest(req, res, body);
           return;
         }

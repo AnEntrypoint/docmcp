@@ -68,8 +68,11 @@ class AuthenticatedHTTPServer {
     this.app = express();
     this.corsOrigin = getCorsOrigin(this.host, this.port);
     this.app.use(cors({
-      origin: this.corsOrigin,
-      credentials: true
+      origin: '*',
+      methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'mcp-session-id'],
+      exposedHeaders: ['mcp-session-id'],
+      credentials: false
     }));
     this.app.use(express.json({ limit: '4mb' }));
     this.app.use(express.urlencoded({ extended: true }));
@@ -714,27 +717,51 @@ async handleStreamableHttpConnection(req, res) {
     const sessionId = req.sessionId;
 
     try {
-      // GET requests open a standalone SSE stream - handle before auth check
-      // so ChatGPT and other clients can establish SSE before POST initialize
+      // For authenticated sessions: reuse transport per session
+      if (sessionId && this.sessionMap.get(sessionId)?.status === 'authenticated') {
+        if (!this.serverMap) this.serverMap = new Map();
+        if (!this.transportMap) this.transportMap = new Map();
+
+        if (!this.transportMap.has(sessionId)) {
+          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+          const server = this.buildMcpServer(sessionId);
+          await server.connect(transport);
+          transport.onclose = () => {
+            server.close().catch(() => {});
+            this.transportMap?.delete(sessionId);
+            this.serverMap?.delete(sessionId);
+          };
+          this.transportMap.set(sessionId, transport);
+          this.serverMap.set(sessionId, server);
+        }
+
+        const transport = this.transportMap.get(sessionId);
+        await transport.handleRequest(req, res, req.body);
+        return;
+      }
+
+      // No valid session - for GET/SSE we still need to respond with SSE so clients
+      // can establish the stream (ChatGPT connects GET first, then POSTs initialize)
       if (req.method === 'GET') {
-        return this.handleSseStream(req, res, sessionId);
+        res.set({
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no'
+        });
+        res.flushHeaders();
+        req.on('close', () => {});
+        return;
       }
 
-      // For POST/DELETE: validate session exists and is authenticated
-      const session = this.sessionMap.get(sessionId);
-      if (!session || session.status !== 'authenticated') {
-        const msg = !session ? 'Session not found. Visit /login to authenticate.' : 'Session not authenticated. Visit /login to complete authentication.';
-        return res.status(401).set('Content-Type', 'application/json').json({ error: msg });
-      }
-
-      // Stateless: create a fresh transport per POST request (avoids _initialized state issues)
-      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      const server = this.buildMcpServer(sessionId);
-      await server.connect(transport);
-
-      transport.onclose = () => server.close().catch(() => {});
-
-      await transport.handleRequest(req, res, req.body);
+      // POST without valid session
+      const msg = !sessionId
+        ? 'No sessionId provided. Visit /login to authenticate first, then use the returned sessionId.'
+        : 'Session not authenticated. Visit /login to complete authentication.';
+      return res.status(401).set('Content-Type', 'application/json').json({
+        error: msg,
+        login_url: `${process.env.COOLIFY_URL || (process.env.COOLIFY_FQDN ? 'https://' + process.env.COOLIFY_FQDN : '')}/login`
+      });
 
     } catch (error) {
       console.error('Streamable HTTP Connection Error:', error);
@@ -742,28 +769,6 @@ async handleStreamableHttpConnection(req, res) {
         res.status(500).set('Content-Type', 'application/json').json({ error: 'Connection failed', message: error.message });
       }
     }
-  }
-
-  handleSseStream(req, res, sessionId) {
-    res.set({
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no'
-    });
-    res.flushHeaders();
-
-    // Register this SSE connection so POST responses can push to it
-    const streamKey = sessionId || `anon-${crypto.randomBytes(8).toString('hex')}`;
-    this.sseStreams = this.sseStreams || new Map();
-    this.sseStreams.set(streamKey, res);
-
-    console.log(`SSE stream opened for: ${streamKey}`);
-
-    req.on('close', () => {
-      this.sseStreams?.delete(streamKey);
-      console.log(`SSE stream closed for: ${streamKey}`);
-    });
   }
 
   buildMcpServer(sessionId) {

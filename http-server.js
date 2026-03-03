@@ -713,15 +713,34 @@ class AuthenticatedHTTPServer {
     }
   }
 
-async handleStreamableHttpConnection(req, res) {
+sendSseError(res, status, error, loginUrl) {
+    if (res.headersSent) return;
+    res.status(status).set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    });
+    const data = { error };
+    if (loginUrl) data.login_url = loginUrl;
+    res.write(`event: error\ndata: ${JSON.stringify(data)}\n\n`);
+    res.end();
+  }
+
+  getBaseUrl() {
+    if (process.env.COOLIFY_URL) return process.env.COOLIFY_URL;
+    if (process.env.COOLIFY_FQDN) return `https://${process.env.COOLIFY_FQDN}`;
+    return '';
+  }
+
+  async handleStreamableHttpConnection(req, res) {
     const sessionId = req.sessionId;
 
     try {
-      // For authenticated sessions: reuse transport per session
-      if (sessionId && this.sessionMap.get(sessionId)?.status === 'authenticated') {
-        if (!this.serverMap) this.serverMap = new Map();
-        if (!this.transportMap) this.transportMap = new Map();
+      if (!this.serverMap) this.serverMap = new Map();
+      if (!this.transportMap) this.transportMap = new Map();
 
+      // Authenticated session: reuse transport
+      if (sessionId && this.sessionMap.get(sessionId)?.status === 'authenticated') {
         if (!this.transportMap.has(sessionId)) {
           const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
           const server = this.buildMcpServer(sessionId);
@@ -734,14 +753,12 @@ async handleStreamableHttpConnection(req, res) {
           this.transportMap.set(sessionId, transport);
           this.serverMap.set(sessionId, server);
         }
-
         const transport = this.transportMap.get(sessionId);
         await transport.handleRequest(req, res, req.body);
         return;
       }
 
-      // No valid session - for GET/SSE we still need to respond with SSE so clients
-      // can establish the stream (ChatGPT connects GET first, then POSTs initialize)
+      // Unauthenticated GET: open SSE stream (clients probe this first)
       if (req.method === 'GET') {
         res.set({
           'Content-Type': 'text/event-stream',
@@ -754,21 +771,51 @@ async handleStreamableHttpConnection(req, res) {
         return;
       }
 
-      // POST without valid session
-      const msg = !sessionId
-        ? 'No sessionId provided. Visit /login to authenticate first, then use the returned sessionId.'
-        : 'Session not authenticated. Visit /login to complete authentication.';
-      return res.status(401).set('Content-Type', 'application/json').json({
-        error: msg,
-        login_url: `${process.env.COOLIFY_URL || (process.env.COOLIFY_FQDN ? 'https://' + process.env.COOLIFY_FQDN : '')}/login`
-      });
+      // Unauthenticated POST: allow initialize through on anonymous transport so
+      // clients (ChatGPT, etc.) can complete the MCP handshake and receive the
+      // login_url inside the MCP error response.
+      if (req.method === 'POST') {
+        const body = req.body || {};
+        const isInit = body.method === 'initialize';
+
+        if (isInit) {
+          const anonKey = `anon_${crypto.randomBytes(8).toString('hex')}`;
+          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+          const server = this.buildUnauthMcpServer(this.getBaseUrl());
+          await server.connect(transport);
+          transport.onclose = () => { server.close().catch(() => {}); };
+          await transport.handleRequest(req, res, body);
+          return;
+        }
+
+        // Non-initialize POST without session
+        const msg = !sessionId
+          ? 'No sessionId provided. Visit /login to authenticate.'
+          : 'Session not authenticated. Visit /login to complete authentication.';
+        return this.sendSseError(res, 401, msg, `${this.getBaseUrl()}/login`);
+      }
+
+      // DELETE or other methods
+      res.status(405).end();
 
     } catch (error) {
       console.error('Streamable HTTP Connection Error:', error);
-      if (!res.headersSent) {
-        res.status(500).set('Content-Type', 'application/json').json({ error: 'Connection failed', message: error.message });
-      }
+      this.sendSseError(res, 500, `Connection failed: ${error.message}`);
     }
+  }
+
+  buildUnauthMcpServer(baseUrl) {
+    const server = new Server({ name: 'docmcp', version: '1.0.0' }, { capabilities: { tools: {} } });
+    const loginUrl = `${baseUrl}/login`;
+
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [] }));
+
+    server.setRequestHandler(CallToolRequestSchema, async () => ({
+      content: [{ type: 'text', text: `Authentication required. Please visit ${loginUrl} to sign in.` }],
+      isError: true
+    }));
+
+    return server;
   }
 
   buildMcpServer(sessionId) {

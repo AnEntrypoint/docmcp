@@ -70,7 +70,7 @@ class AuthenticatedHTTPServer {
     this.app.use(cors({
       origin: '*',
       methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'mcp-session-id'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'mcp-session-id', 'mcp-protocol-version'],
       exposedHeaders: ['mcp-session-id'],
       credentials: false
     }));
@@ -89,8 +89,11 @@ class AuthenticatedHTTPServer {
   initializeRoutes() {
     // Session context middleware - extract and validate session ID
     const sessionContextMiddleware = (req, res, next) => {
-      // Extract session ID from URL params, query params, or headers
-      const sessionId = req.params.sessionId || req.query.sessionId || req.headers['x-session-id'];
+      // Extract session ID from Bearer token, URL params, query params, or headers
+      let sessionId = req.params.sessionId || req.query.sessionId || req.headers['x-session-id'];
+      if (!sessionId && req.headers.authorization?.startsWith('Bearer ')) {
+        sessionId = req.headers.authorization.slice(7);
+      }
 
       // Attach to request for downstream handlers
       req.sessionId = sessionId;
@@ -136,7 +139,8 @@ class AuthenticatedHTTPServer {
         },
         quick_start: {
           browser_users: 'GET /login - Authenticate and automatically connect to /mcp',
-          api_clients: 'POST /auth/token with Google OAuth code, then connect to /mcp with sessionId'
+          api_clients: 'POST /auth/token with Google OAuth code, then connect to /mcp with sessionId',
+          chatgpt: '1) Visit /login to authenticate with Google, 2) Copy your sessionId from the success page, 3) Add MCP connector at /mcp with Bearer token authentication using your sessionId'
         },
         activeSessions: this.sessionMap.size,
         activeConnections: this.sseStreams.size
@@ -662,8 +666,70 @@ class AuthenticatedHTTPServer {
 
       console.log(`Session authenticated: ${state}`);
 
-      // Redirect to /mcp endpoint to start Streamable HTTP connection
-      res.redirect(302, `/mcp?sessionId=${state}`);
+      // Show success page with sessionId so user can copy it for ChatGPT
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>docmcp - Authenticated</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+                .container { background: white; border-radius: 20px; padding: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); max-width: 560px; width: 100%; text-align: center; }
+                .success-icon { font-size: 64px; margin-bottom: 20px; }
+                .title { font-size: 28px; color: #333; margin-bottom: 10px; }
+                .subtitle { font-size: 16px; color: #666; margin-bottom: 30px; line-height: 1.5; }
+                .session-box { background: #f0f4ff; border: 2px solid #667eea; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: left; }
+                .session-box label { font-size: 12px; font-weight: bold; color: #667eea; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 8px; }
+                .session-id { font-family: 'Courier New', monospace; font-size: 14px; color: #333; background: white; border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; word-break: break-all; cursor: pointer; }
+                .copy-btn { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 10px; width: 100%; transition: background 0.2s; }
+                .copy-btn:hover { background: #5a6fd8; }
+                .steps { background: #f9f9f9; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: left; }
+                .steps h3 { font-size: 15px; color: #333; margin-bottom: 12px; }
+                .steps ol { padding-left: 18px; }
+                .steps li { font-size: 14px; color: #555; padding: 5px 0; line-height: 1.4; }
+                .steps code { background: #e8e8e8; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+                .mcp-btn { display: inline-block; background: #4CAF50; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 15px; font-weight: bold; margin-top: 10px; transition: background 0.2s; }
+                .mcp-btn:hover { background: #43a047; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="success-icon">✅</div>
+                <h1 class="title">Authenticated!</h1>
+                <p class="subtitle">Your Google account is connected. Copy your Session ID to use with ChatGPT or other MCP clients.</p>
+                <div class="session-box">
+                    <label>Your Session ID</label>
+                    <div class="session-id" id="sid" onclick="copySessionId()">${state}</div>
+                    <button class="copy-btn" onclick="copySessionId()">Copy Session ID</button>
+                </div>
+                <div class="steps">
+                    <h3>To use with ChatGPT:</h3>
+                    <ol>
+                        <li>Copy your Session ID above</li>
+                        <li>In ChatGPT, add a new MCP connector with URL: <code>/mcp</code></li>
+                        <li>Set authentication to <strong>Bearer token</strong></li>
+                        <li>Paste your Session ID as the token</li>
+                    </ol>
+                </div>
+                <a href="/mcp?sessionId=${state}" class="mcp-btn">Connect to MCP directly</a>
+            </div>
+            <script>
+                function copySessionId() {
+                    const sid = document.getElementById('sid').textContent;
+                    navigator.clipboard.writeText(sid).then(() => {
+                        const btn = document.querySelector('.copy-btn');
+                        btn.textContent = 'Copied!';
+                        btn.style.background = '#4CAF50';
+                        setTimeout(() => { btn.textContent = 'Copy Session ID'; btn.style.background = '#667eea'; }, 2000);
+                    });
+                }
+            </script>
+        </body>
+        </html>
+      `);
     } catch (error) {
       console.error('Token Exchange Error:', error);
       res.status(500).json({

@@ -870,7 +870,8 @@ sendSseError(res, status, error, loginUrl) {
 
       // Check if this is a follow-up request to an existing anonymous transport
       const mcpSessionId = req.headers['mcp-session-id'];
-      if (mcpSessionId && this.transportMap.has(mcpSessionId)) {
+      const body0 = req.body || {};
+      if (mcpSessionId && this.transportMap.has(mcpSessionId) && body0.method !== 'initialize') {
         const transport = this.transportMap.get(mcpSessionId);
         await transport.handleRequest(req, res, req.body);
         return;

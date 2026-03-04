@@ -1058,10 +1058,11 @@ sendSseError(res, status, error, loginUrl) {
   }
 
   buildUnauthMcpServer(baseUrl) {
+    const TOOLS = [...DOCS_TOOLS, ...SECTION_TOOLS, ...MEDIA_TOOLS, ...DRIVE_TOOLS, ...SHEETS_TOOLS, ...SCRIPTS_TOOLS, ...GMAIL_TOOLS];
     const server = new Server({ name: 'docmcp', version: '1.0.0' }, { capabilities: { tools: {} } });
     const loginUrl = `${baseUrl}/login`;
 
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [] }));
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
     server.setRequestHandler(CallToolRequestSchema, async () => ({
       content: [{ type: 'text', text: `Authentication required. Please visit ${loginUrl} to sign in.` }],

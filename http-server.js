@@ -983,6 +983,10 @@ sendSseError(res, status, error, loginUrl) {
 
       // Authenticated session: reuse transport (unless re-initialize)
       if (sessionId && this.sessionMap.get(sessionId)?.status === 'authenticated') {
+        // GET without mcp-session-id is a probe/health check - return 200
+        if (req.method === 'GET' && !req.headers['mcp-session-id']) {
+          return res.status(200).json({ status: 'ready', protocol: 'mcp', transport: 'streamable-http' });
+        }
         const isReInit = (req.body || {}).method === 'initialize' && this.transportMap.has(sessionId);
         if (isReInit) {
           const old = this.transportMap.get(sessionId);

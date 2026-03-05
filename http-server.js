@@ -181,7 +181,7 @@ class AuthenticatedHTTPServer {
         grant_types_supported: ['authorization_code', 'refresh_token'],
         code_challenge_methods_supported: ['S256', 'plain'],
         token_endpoint_auth_methods_supported: ['none'],
-        scopes_supported: ['drive', 'documents', 'spreadsheets', 'script.projects', 'gmail.modify']
+        scopes_supported: ['drive', 'documents', 'spreadsheets', 'script.projects', 'gmail.modify', 'gmail.settings.basic']
       });
     });
 
@@ -394,7 +394,8 @@ class AuthenticatedHTTPServer {
         'https://www.googleapis.com/auth/documents',
         'https://www.googleapis.com/auth/spreadsheets',
         'https://www.googleapis.com/auth/script.projects',
-        'https://www.googleapis.com/auth/gmail.modify'
+        'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/gmail.settings.basic'
       ];
 
       const sessionId = crypto.randomBytes(16).toString('hex');

@@ -60,10 +60,125 @@ export const GMAIL_TOOLS = [
   },
   {
     name: 'gmail_get_labels',
-    description: 'list all email labels',
+    description: 'list all email labels with visibility, counts, and color metadata',
     inputSchema: {
       type: 'object',
       properties: {}
+    }
+  },
+  {
+    name: 'gmail_create_label',
+    description: 'create a Gmail label',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'label display name' },
+        label_list_visibility: { type: 'string', enum: ['labelHide', 'labelShow', 'labelShowIfUnread'], description: 'left-nav visibility' },
+        message_list_visibility: { type: 'string', enum: ['hide', 'show'], description: 'message list visibility' },
+        color: {
+          type: 'object',
+          properties: {
+            text_color: { type: 'string', description: 'hex color like #000000' },
+            background_color: { type: 'string', description: 'hex color like #ffffff' }
+          }
+        }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'gmail_update_label',
+    description: 'update an existing Gmail label',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        label_id: { type: 'string', description: 'label id to update' },
+        name: { type: 'string', description: 'new label name' },
+        label_list_visibility: { type: 'string', enum: ['labelHide', 'labelShow', 'labelShowIfUnread'], description: 'left-nav visibility' },
+        message_list_visibility: { type: 'string', enum: ['hide', 'show'], description: 'message list visibility' },
+        color: {
+          type: 'object',
+          properties: {
+            text_color: { type: 'string', description: 'hex color like #000000' },
+            background_color: { type: 'string', description: 'hex color like #ffffff' }
+          }
+        }
+      },
+      required: ['label_id']
+    }
+  },
+  {
+    name: 'gmail_delete_label',
+    description: 'delete a Gmail label by id',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        label_id: { type: 'string', description: 'label id to delete' }
+      },
+      required: ['label_id']
+    }
+  },
+  {
+    name: 'gmail_list_filters',
+    description: 'list all Gmail filters',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
+    name: 'gmail_get_filter',
+    description: 'get one Gmail filter by id',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filter_id: { type: 'string', description: 'filter id' }
+      },
+      required: ['filter_id']
+    }
+  },
+  {
+    name: 'gmail_create_filter',
+    description: 'create a Gmail filter with criteria and action',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        criteria: {
+          type: 'object',
+          description: 'Gmail filter criteria (from, to, subject, query, negated_query, has_attachment, size, size_comparison)',
+          properties: {
+            from: { type: 'string' },
+            to: { type: 'string' },
+            subject: { type: 'string' },
+            query: { type: 'string' },
+            negated_query: { type: 'string' },
+            has_attachment: { type: 'boolean' },
+            size: { type: 'number' },
+            size_comparison: { type: 'string', enum: ['larger', 'smaller'] }
+          }
+        },
+        action: {
+          type: 'object',
+          description: 'Gmail filter action (add/remove labels, forward)',
+          properties: {
+            add_label_ids: { type: 'array', items: { type: 'string' } },
+            remove_label_ids: { type: 'array', items: { type: 'string' } },
+            forward: { type: 'string', description: 'forwarding address (must already be configured in Gmail)' }
+          }
+        }
+      },
+      required: ['criteria', 'action']
+    }
+  },
+  {
+    name: 'gmail_delete_filter',
+    description: 'delete a Gmail filter by id',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filter_id: { type: 'string', description: 'filter id to delete' }
+      },
+      required: ['filter_id']
     }
   },
   {

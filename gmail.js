@@ -173,9 +173,90 @@ export async function getLabels(auth) {
     labels: (res.data.labels || []).map(label => ({
       id: label.id,
       name: label.name,
-      type: label.type
+      type: label.type,
+      messagesTotal: label.messagesTotal,
+      messagesUnread: label.messagesUnread,
+      threadsTotal: label.threadsTotal,
+      threadsUnread: label.threadsUnread,
+      labelListVisibility: label.labelListVisibility,
+      messageListVisibility: label.messageListVisibility,
+      color: label.color
     }))
   };
+}
+
+export async function createLabel(auth, requestBody) {
+  const gmail = getGmail(auth);
+
+  const res = await gmail.users.labels.create({
+    userId: 'me',
+    requestBody
+  });
+
+  return res.data;
+}
+
+export async function updateLabel(auth, labelId, requestBody) {
+  const gmail = getGmail(auth);
+
+  const res = await gmail.users.labels.patch({
+    userId: 'me',
+    id: labelId,
+    requestBody
+  });
+
+  return res.data;
+}
+
+export async function deleteLabel(auth, labelId) {
+  const gmail = getGmail(auth);
+
+  await gmail.users.labels.delete({
+    userId: 'me',
+    id: labelId
+  });
+
+  return { deleted: labelId };
+}
+
+export async function listFilters(auth) {
+  const gmail = getGmail(auth);
+
+  const res = await gmail.users.settings.filters.list({ userId: 'me' });
+  return { filters: res.data.filter || [] };
+}
+
+export async function getFilter(auth, filterId) {
+  const gmail = getGmail(auth);
+
+  const res = await gmail.users.settings.filters.get({
+    userId: 'me',
+    id: filterId
+  });
+
+  return res.data;
+}
+
+export async function createFilter(auth, criteria, action) {
+  const gmail = getGmail(auth);
+
+  const res = await gmail.users.settings.filters.create({
+    userId: 'me',
+    requestBody: { criteria, action }
+  });
+
+  return res.data;
+}
+
+export async function deleteFilter(auth, filterId) {
+  const gmail = getGmail(auth);
+
+  await gmail.users.settings.filters.delete({
+    userId: 'me',
+    id: filterId
+  });
+
+  return { deleted: filterId };
 }
 
 export async function sendEmail(auth, to, subject, body, cc = null, bcc = null) {

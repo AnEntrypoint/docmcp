@@ -345,6 +345,68 @@ export async function handleGmailToolCall(name, args, auth) {
       const result = await gmail.getLabels(auth);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
+    case 'gmail_create_label': {
+      const requestBody = {
+        name: args.name
+      };
+      if (args.label_list_visibility) requestBody.labelListVisibility = args.label_list_visibility;
+      if (args.message_list_visibility) requestBody.messageListVisibility = args.message_list_visibility;
+      if (args.color) {
+        requestBody.color = {};
+        if (args.color.text_color) requestBody.color.textColor = args.color.text_color;
+        if (args.color.background_color) requestBody.color.backgroundColor = args.color.background_color;
+      }
+      const result = await gmail.createLabel(auth, requestBody);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_update_label': {
+      const requestBody = {};
+      if (args.name) requestBody.name = args.name;
+      if (args.label_list_visibility) requestBody.labelListVisibility = args.label_list_visibility;
+      if (args.message_list_visibility) requestBody.messageListVisibility = args.message_list_visibility;
+      if (args.color) {
+        requestBody.color = {};
+        if (args.color.text_color) requestBody.color.textColor = args.color.text_color;
+        if (args.color.background_color) requestBody.color.backgroundColor = args.color.background_color;
+      }
+      const result = await gmail.updateLabel(auth, args.label_id, requestBody);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_delete_label': {
+      const result = await gmail.deleteLabel(auth, args.label_id);
+      return { content: [{ type: 'text', text: `Deleted label ${result.deleted}` }] };
+    }
+    case 'gmail_list_filters': {
+      const result = await gmail.listFilters(auth);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_get_filter': {
+      const result = await gmail.getFilter(auth, args.filter_id);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_create_filter': {
+      const criteria = {};
+      if (args.criteria.from) criteria.from = args.criteria.from;
+      if (args.criteria.to) criteria.to = args.criteria.to;
+      if (args.criteria.subject) criteria.subject = args.criteria.subject;
+      if (args.criteria.query) criteria.query = args.criteria.query;
+      if (args.criteria.negated_query) criteria.negatedQuery = args.criteria.negated_query;
+      if (args.criteria.has_attachment !== undefined) criteria.hasAttachment = args.criteria.has_attachment;
+      if (args.criteria.size !== undefined) criteria.size = args.criteria.size;
+      if (args.criteria.size_comparison) criteria.sizeComparison = args.criteria.size_comparison;
+
+      const action = {};
+      if (args.action.add_label_ids) action.addLabelIds = args.action.add_label_ids;
+      if (args.action.remove_label_ids) action.removeLabelIds = args.action.remove_label_ids;
+      if (args.action.forward) action.forward = args.action.forward;
+
+      const result = await gmail.createFilter(auth, criteria, action);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+    case 'gmail_delete_filter': {
+      const result = await gmail.deleteFilter(auth, args.filter_id);
+      return { content: [{ type: 'text', text: `Deleted filter ${result.deleted}` }] };
+    }
     case 'gmail_send': {
       const result = await gmail.sendEmail(auth, args.to, args.subject, args.body, args.cc || null, args.bcc || null);
       return { content: [{ type: 'text', text: `Sent email to ${args.to}\nMessage ID: ${result.id}` }] };

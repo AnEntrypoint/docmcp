@@ -1006,6 +1006,9 @@ sendSseError(res, status, error, loginUrl) {
           this.transportMap.set(sessionId, transport);
           this.serverMap.set(sessionId, server);
         }
+        if (!req.headers['mcp-session-id']) {
+          req.headers['mcp-session-id'] = sessionId;
+        }
         const transport = this.transportMap.get(sessionId);
         await transport.handleRequest(req, res, req.body);
         return;
@@ -1038,6 +1041,7 @@ sendSseError(res, status, error, loginUrl) {
           this.transportMap.set(sessionId, transport);
           this.serverMap.set(sessionId, server);
         }
+        if (!req.headers['mcp-session-id']) req.headers['mcp-session-id'] = sessionId;
         await this.transportMap.get(sessionId).handleRequest(req, res, req.body);
         return;
       }

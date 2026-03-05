@@ -1151,15 +1151,27 @@ class AuthenticatedHTTPServer {
     }
   }
 
-sendSseError(res, status, error, loginUrl) {
+  sendMcpError(req, res, status, error, loginUrl) {
     if (res.headersSent) return;
+    const data = { error };
+    if (loginUrl) data.login_url = loginUrl;
+
+    const accept = String(req?.headers?.accept || '').toLowerCase();
+    // Streamable HTTP MCP clients frequently expect JSON responses for request/response
+    // calls and can fail hard on SSE-formatted error bodies.
+    if (accept.includes('application/json') || req?.method === 'POST') {
+      res.status(status).set({
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      }).json(data);
+      return;
+    }
+
     res.status(status).set({
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive'
     });
-    const data = { error };
-    if (loginUrl) data.login_url = loginUrl;
     res.write(`event: error\ndata: ${JSON.stringify(data)}\n\n`);
     res.end();
   }
@@ -1328,7 +1340,7 @@ sendSseError(res, status, error, loginUrl) {
         const msg = !sessionId
           ? 'No sessionId provided. Visit /login to authenticate.'
           : 'Session not authenticated. Visit /login to complete authentication.';
-        return this.sendSseError(res, 401, msg, `${this.getBaseUrl(req)}/login`);
+        return this.sendMcpError(req, res, 401, msg, `${this.getBaseUrl(req)}/login`);
       }
 
       // DELETE or other methods
@@ -1336,7 +1348,7 @@ sendSseError(res, status, error, loginUrl) {
 
     } catch (error) {
       console.error('Streamable HTTP Connection Error:', error);
-      this.sendSseError(res, 500, `Connection failed: ${error.message}`);
+      this.sendMcpError(req, res, 500, `Connection failed: ${error.message}`);
     }
   }
 

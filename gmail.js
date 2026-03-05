@@ -259,6 +259,35 @@ export async function deleteFilter(auth, filterId) {
   return { deleted: filterId };
 }
 
+export async function replaceFilter(auth, filterId, criteriaPatch = {}, actionPatch = {}) {
+  const current = await getFilter(auth, filterId);
+  const nextCriteria = { ...(current.criteria || {}), ...(criteriaPatch || {}) };
+  const nextAction = { ...(current.action || {}), ...(actionPatch || {}) };
+  const created = await createFilter(auth, nextCriteria, nextAction);
+
+  let deleted = false;
+  try {
+    await deleteFilter(auth, filterId);
+    deleted = true;
+  } catch (err) {
+    return {
+      replaced: false,
+      oldFilterId: filterId,
+      newFilterId: created.id,
+      deletedOld: false,
+      warning: `Created replacement filter but failed to delete old filter: ${err.message}`
+    };
+  }
+
+  return {
+    replaced: true,
+    oldFilterId: filterId,
+    newFilterId: created.id,
+    deletedOld: deleted,
+    filter: created
+  };
+}
+
 export async function sendEmail(auth, to, subject, body, cc = null, bcc = null) {
   const gmail = getGmail(auth);
   
@@ -333,5 +362,81 @@ export async function modifyLabels(auth, messageId, addLabels = [], removeLabels
     id: res.data.id,
     threadId: res.data.threadId,
     labelIds: res.data.labelIds
+  };
+}
+
+function chunkArray(items, chunkSize) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+export async function listMessageIdsByQuery(auth, query, maxResults = 2000) {
+  const gmail = getGmail(auth);
+  const pageSize = Math.min(maxResults, 500);
+  let pageToken = undefined;
+  const ids = [];
+
+  while (ids.length < maxResults) {
+    const listRes = await gmail.users.messages.list({
+      userId: 'me',
+      q: query,
+      maxResults: Math.min(pageSize, maxResults - ids.length),
+      pageToken
+    });
+
+    const messages = listRes.data.messages || [];
+    for (const message of messages) {
+      ids.push(message.id);
+    }
+
+    pageToken = listRes.data.nextPageToken;
+    if (!pageToken || messages.length === 0) break;
+  }
+
+  return { ids, count: ids.length };
+}
+
+export async function bulkModifyLabels(auth, messageIds = [], addLabels = [], removeLabels = []) {
+  const gmail = getGmail(auth);
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    return { matched: 0, processed: 0, failedBatches: 0 };
+  }
+
+  const chunks = chunkArray(messageIds, 1000);
+  let processed = 0;
+  let failedBatches = 0;
+
+  for (const ids of chunks) {
+    try {
+      await gmail.users.messages.batchModify({
+        userId: 'me',
+        requestBody: {
+          ids,
+          addLabelIds: addLabels,
+          removeLabelIds: removeLabels
+        }
+      });
+      processed += ids.length;
+    } catch {
+      failedBatches += 1;
+    }
+  }
+
+  return {
+    matched: messageIds.length,
+    processed,
+    failedBatches
+  };
+}
+
+export async function bulkModifyLabelsByQuery(auth, query, addLabels = [], removeLabels = [], maxResults = 2000) {
+  const listed = await listMessageIdsByQuery(auth, query, maxResults);
+  const modified = await bulkModifyLabels(auth, listed.ids, addLabels, removeLabels);
+  return {
+    query,
+    ...modified
   };
 }

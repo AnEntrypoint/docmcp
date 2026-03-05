@@ -182,6 +182,40 @@ export const GMAIL_TOOLS = [
     }
   },
   {
+    name: 'gmail_replace_filter',
+    description: 'replace an existing Gmail filter (Gmail has no native update API)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filter_id: { type: 'string', description: 'existing filter id to replace' },
+        criteria: {
+          type: 'object',
+          description: 'criteria fields to override (from, to, subject, query, negated_query, has_attachment, size, size_comparison)',
+          properties: {
+            from: { type: 'string' },
+            to: { type: 'string' },
+            subject: { type: 'string' },
+            query: { type: 'string' },
+            negated_query: { type: 'string' },
+            has_attachment: { type: 'boolean' },
+            size: { type: 'number' },
+            size_comparison: { type: 'string', enum: ['larger', 'smaller'] }
+          }
+        },
+        action: {
+          type: 'object',
+          description: 'action fields to override (add/remove labels, forward)',
+          properties: {
+            add_label_ids: { type: 'array', items: { type: 'string' } },
+            remove_label_ids: { type: 'array', items: { type: 'string' } },
+            forward: { type: 'string' }
+          }
+        }
+      },
+      required: ['filter_id']
+    }
+  },
+  {
     name: 'gmail_send',
     description: 'send an email',
     inputSchema: {
@@ -229,6 +263,20 @@ export const GMAIL_TOOLS = [
         remove_labels: { type: 'array', items: { type: 'string' }, description: 'label ids to remove' }
       },
       required: ['message_id']
+    }
+  },
+  {
+    name: 'gmail_bulk_modify_labels',
+    description: 'bulk add or remove labels from emails matching a Gmail query',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Gmail query to match messages for bulk processing' },
+        add_labels: { type: 'array', items: { type: 'string' }, description: 'label ids to add to each matched message' },
+        remove_labels: { type: 'array', items: { type: 'string' }, description: 'label ids to remove from each matched message' },
+        max_results: { type: 'number', description: 'maximum matched messages to process (default 2000)', default: 2000 }
+      },
+      required: ['query']
     }
   }
 ];

@@ -134,10 +134,16 @@ Commands:
   gmail get-attachments <message-id> List attachments
   gmail download-attachment <message-id> <attachment-id> Download attachment
   gmail get-labels          List all labels
+  gmail list-filters        List all filters
+  gmail get-filter <filter-id> Get one filter
+  gmail create-filter       Create filter (--criteria, --action)
+  gmail delete-filter <filter-id> Delete filter
+  gmail replace-filter <filter-id> Replace filter (--criteria, --action)
   gmail send                Send email (--to, --subject, --body, --cc, --bcc)
   gmail delete <message-id> Permanently delete email
   gmail trash <message-id>  Move email to trash
-  gmail modify-labels <message-id> Modify labels (--add-labels, --remove-labels)`);
+  gmail modify-labels <message-id> Modify labels (--add-labels, --remove-labels)
+  gmail bulk-modify-labels  Bulk modify labels (--query, --add-labels, --remove-labels, --max-results)`);
     return;
   }
 
@@ -930,6 +936,57 @@ Commands:
       return;
     }
 
+    if (sub === 'list-filters') {
+      const result = await gmail.listFilters(auth);
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (sub === 'get-filter') {
+      const filterId = args[2];
+      if (!filterId) {
+        console.error('Error: filter_id required');
+        process.exit(1);
+      }
+      const result = await gmail.getFilter(auth, filterId);
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (sub === 'create-filter') {
+      if (!opts.criteria || !opts.action) {
+        console.error('Error: --criteria and --action required');
+        process.exit(1);
+      }
+      const result = await gmail.createFilter(auth, parseJson(opts.criteria), parseJson(opts.action));
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (sub === 'delete-filter') {
+      const filterId = args[2];
+      if (!filterId) {
+        console.error('Error: filter_id required');
+        process.exit(1);
+      }
+      const result = await gmail.deleteFilter(auth, filterId);
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (sub === 'replace-filter') {
+      const filterId = args[2];
+      if (!filterId) {
+        console.error('Error: filter_id required');
+        process.exit(1);
+      }
+      const criteria = opts.criteria ? parseJson(opts.criteria) : {};
+      const action = opts.action ? parseJson(opts.action) : {};
+      const result = await gmail.replaceFilter(auth, filterId, criteria, action);
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
     if (sub === 'send') {
       if (!opts.to || !opts.subject || !opts.body) {
         console.error('Error: --to, --subject, and --body required');
@@ -973,6 +1030,19 @@ Commands:
       const removeLabels = opts['remove-labels'] ? parseJson(opts['remove-labels']) : [];
       const result = await gmail.modifyLabels(auth, messageId, addLabels, removeLabels);
       console.log(`Modified labels for email ${result.id}`);
+      return;
+    }
+
+    if (sub === 'bulk-modify-labels') {
+      if (!opts.query) {
+        console.error('Error: --query required');
+        process.exit(1);
+      }
+      const addLabels = opts['add-labels'] ? parseJson(opts['add-labels']) : [];
+      const removeLabels = opts['remove-labels'] ? parseJson(opts['remove-labels']) : [];
+      const maxResults = parseInt(opts['max-results'] || '2000', 10);
+      const result = await gmail.bulkModifyLabelsByQuery(auth, opts.query, addLabels, removeLabels, maxResults);
+      console.log(JSON.stringify(result, null, 2));
       return;
     }
 

@@ -320,6 +320,27 @@ export async function handleSheetsToolCall(name, args, auth) {
 }
 
 export async function handleGmailToolCall(name, args, auth) {
+  const mapCriteria = (criteria = {}) => {
+    const out = {};
+    if (criteria.from) out.from = criteria.from;
+    if (criteria.to) out.to = criteria.to;
+    if (criteria.subject) out.subject = criteria.subject;
+    if (criteria.query) out.query = criteria.query;
+    if (criteria.negated_query) out.negatedQuery = criteria.negated_query;
+    if (criteria.has_attachment !== undefined) out.hasAttachment = criteria.has_attachment;
+    if (criteria.size !== undefined) out.size = criteria.size;
+    if (criteria.size_comparison) out.sizeComparison = criteria.size_comparison;
+    return out;
+  };
+
+  const mapAction = (action = {}) => {
+    const out = {};
+    if (action.add_label_ids) out.addLabelIds = action.add_label_ids;
+    if (action.remove_label_ids) out.removeLabelIds = action.remove_label_ids;
+    if (action.forward) out.forward = action.forward;
+    return out;
+  };
+
   switch (name) {
     case 'gmail_list': {
       const result = await gmail.listEmails(auth, args.max_results || 20, args.query || null, args.label_ids || null);
@@ -385,27 +406,20 @@ export async function handleGmailToolCall(name, args, auth) {
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
     case 'gmail_create_filter': {
-      const criteria = {};
-      if (args.criteria.from) criteria.from = args.criteria.from;
-      if (args.criteria.to) criteria.to = args.criteria.to;
-      if (args.criteria.subject) criteria.subject = args.criteria.subject;
-      if (args.criteria.query) criteria.query = args.criteria.query;
-      if (args.criteria.negated_query) criteria.negatedQuery = args.criteria.negated_query;
-      if (args.criteria.has_attachment !== undefined) criteria.hasAttachment = args.criteria.has_attachment;
-      if (args.criteria.size !== undefined) criteria.size = args.criteria.size;
-      if (args.criteria.size_comparison) criteria.sizeComparison = args.criteria.size_comparison;
-
-      const action = {};
-      if (args.action.add_label_ids) action.addLabelIds = args.action.add_label_ids;
-      if (args.action.remove_label_ids) action.removeLabelIds = args.action.remove_label_ids;
-      if (args.action.forward) action.forward = args.action.forward;
-
+      const criteria = mapCriteria(args.criteria || {});
+      const action = mapAction(args.action || {});
       const result = await gmail.createFilter(auth, criteria, action);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
     case 'gmail_delete_filter': {
       const result = await gmail.deleteFilter(auth, args.filter_id);
       return { content: [{ type: 'text', text: `Deleted filter ${result.deleted}` }] };
+    }
+    case 'gmail_replace_filter': {
+      const criteria = mapCriteria(args.criteria || {});
+      const action = mapAction(args.action || {});
+      const result = await gmail.replaceFilter(auth, args.filter_id, criteria, action);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
     case 'gmail_send': {
       const result = await gmail.sendEmail(auth, args.to, args.subject, args.body, args.cc || null, args.bcc || null);
@@ -422,6 +436,16 @@ export async function handleGmailToolCall(name, args, auth) {
     case 'gmail_modify_labels': {
       const result = await gmail.modifyLabels(auth, args.message_id, args.add_labels || [], args.remove_labels || []);
       return { content: [{ type: 'text', text: `Modified labels for email ${result.id}` }] };
+    }
+    case 'gmail_bulk_modify_labels': {
+      const result = await gmail.bulkModifyLabelsByQuery(
+        auth,
+        args.query,
+        args.add_labels || [],
+        args.remove_labels || [],
+        args.max_results || 2000
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
     default:
       return null;

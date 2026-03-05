@@ -1166,6 +1166,26 @@ class AuthenticatedHTTPServer {
     // Streamable HTTP MCP clients frequently expect JSON responses for request/response
     // calls and can fail hard on SSE-formatted error bodies.
     if (accept.includes('application/json') || req?.method === 'POST') {
+      const body = req?.body || {};
+      const reqId = Object.prototype.hasOwnProperty.call(body, 'id') ? body.id : null;
+      const mcpMethod = typeof body?.method === 'string' ? body.method : null;
+      // Use JSON-RPC envelope for MCP POST requests so strict clients can decode.
+      if (mcpMethod || body?.jsonrpc === '2.0') {
+        const errorCode = status === 401 ? -32001 : -32603;
+        res.status(status).set({
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        }).json({
+          jsonrpc: '2.0',
+          id: reqId,
+          error: {
+            code: errorCode,
+            message: error,
+            data
+          }
+        });
+        return;
+      }
       res.status(status).set({
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache'

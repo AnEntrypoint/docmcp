@@ -1203,141 +1203,49 @@ class AuthenticatedHTTPServer {
     try {
       if (!this.serverMap) this.serverMap = new Map();
       if (!this.transportMap) this.transportMap = new Map();
-
-      // If Bearer token provided but session not found/valid, return 401 so client re-authenticates.
-      // Static bearer sessions are validated separately from the OAuth session map.
-      if (sessionId && !this.isStaticSessionId(sessionId) && !this.sessionMap.has(sessionId)) {
-        res.status(401).set('WWW-Authenticate', 'Bearer error="invalid_token" error_description="Session expired or not found. Re-authenticate."').json({ error: 'invalid_token', error_description: 'Session expired or not found. Please re-authenticate.' });
-        return;
-      }
-
-      // Authenticated session: reuse transport (unless re-initialize)
-      if (this.isAuthenticatedSession(sessionId)) {
-        // GET without mcp-session-id is a probe/health check - return 200
-        if (req.method === 'GET' && !req.headers['mcp-session-id']) {
-          return res.status(200).json({ status: 'ready', protocol: 'mcp', transport: 'streamable-http' });
-        }
-        const isReInit = (req.body || {}).method === 'initialize' && this.transportMap.has(sessionId);
-        if (isReInit) {
-          const old = this.transportMap.get(sessionId);
-          this.transportMap.delete(sessionId);
-          this.serverMap.delete(sessionId);
-          old.close().catch(() => {});
-        }
-        if (!this.transportMap.has(sessionId)) {
-          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId, enableJsonResponse: true });
-          const server = this.isStaticSessionId(sessionId) ? this.buildStaticMcpServer(sessionId) : this.buildMcpServer(sessionId);
-          await server.connect(transport);
-          transport.onclose = () => {
-            server.close().catch(() => {});
-            this.transportMap?.delete(sessionId);
-            this.serverMap?.delete(sessionId);
-          };
-          this.transportMap.set(sessionId, transport);
-          this.serverMap.set(sessionId, server);
-        }
-        if (!req.headers['mcp-session-id']) {
-          req.headers['mcp-session-id'] = sessionId;
-          req.rawHeaders.push('mcp-session-id', sessionId);
-        }
-        const transport = this.transportMap.get(sessionId);
-        await transport.handleRequest(req, res, req.body);
-        return;
-      }
-
-      // Check if this is a follow-up request to an existing anonymous transport
-      const mcpSessionId = req.headers['mcp-session-id'];
-      const body0 = req.body || {};
-      if (mcpSessionId && this.transportMap.has(mcpSessionId) && body0.method !== 'initialize') {
-        // If Bearer token provides an authenticated session, upgrade: close anon transport, route to auth
-        if (this.isAuthenticatedSession(sessionId)) {
-          const anon = this.transportMap.get(mcpSessionId);
-          this.transportMap.delete(mcpSessionId);
-          anon.close().catch(() => {});
-          // Fall through to authenticated session handler below
-        } else {
-          const transport = this.transportMap.get(mcpSessionId);
-          await transport.handleRequest(req, res, req.body);
-          return;
-        }
-      }
-
-      // Re-check authenticated session after possible anon upgrade
-      if (this.isAuthenticatedSession(sessionId)) {
-        if (!this.transportMap.has(sessionId)) {
-          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId, enableJsonResponse: true });
-          const server = this.isStaticSessionId(sessionId) ? this.buildStaticMcpServer(sessionId) : this.buildMcpServer(sessionId);
-          await server.connect(transport);
-          transport.onclose = () => { server.close().catch(() => {}); this.transportMap?.delete(sessionId); this.serverMap?.delete(sessionId); };
-          this.transportMap.set(sessionId, transport);
-          this.serverMap.set(sessionId, server);
-        }
-        if (!req.headers['mcp-session-id']) { req.headers['mcp-session-id'] = sessionId; req.rawHeaders.push('mcp-session-id', sessionId); }
-        await this.transportMap.get(sessionId).handleRequest(req, res, req.body);
-        return;
-      }
-
-      // Unauthenticated GET: return 401 with WWW-Authenticate so clients know auth is required
-      if (req.method === 'GET') {
+      if (!this.isAuthenticatedSession(sessionId)) {
         const base = this.getBaseUrl(req);
         res.set('WWW-Authenticate', `Bearer realm="${base}", resource_metadata="${base}/.well-known/oauth-protected-resource"`);
-        return res.status(401).json({
-          error: 'authentication_required',
-          login_url: `${base}/login`,
-          message: 'Please authenticate at /login to get a sessionId, then connect to /mcp?sessionId=<id>'
+        return this.sendMcpError(
+          req,
+          res,
+          401,
+          'Authentication required. Use OAuth /login or provide Authorization: Bearer <token>.',
+          `${base}/login`
+        );
+      }
+
+      const isReInit = (req.body || {}).method === 'initialize' && this.transportMap.has(sessionId);
+      if (isReInit) {
+        const old = this.transportMap.get(sessionId);
+        this.transportMap.delete(sessionId);
+        this.serverMap.delete(sessionId);
+        old.close().catch(() => {});
+      }
+
+      if (!this.transportMap.has(sessionId)) {
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => sessionId,
+          enableJsonResponse: true
         });
+        const server = this.isStaticSessionId(sessionId) ? this.buildStaticMcpServer(sessionId) : this.buildMcpServer(sessionId);
+        await server.connect(transport);
+        transport.onclose = () => {
+          server.close().catch(() => {});
+          this.transportMap?.delete(sessionId);
+          this.serverMap?.delete(sessionId);
+        };
+        this.transportMap.set(sessionId, transport);
+        this.serverMap.set(sessionId, server);
       }
 
-      // Unauthenticated POST: allow initialize through on anonymous transport so
-      // clients (ChatGPT, etc.) can complete the MCP handshake and discover login URL.
-      if (req.method === 'POST') {
-        const body = req.body || {};
-        const isInit = body.method === 'initialize';
-
-        if (isInit) {
-          // If mcp-session-id header refers to an authenticated session, reuse it
-          const existingMcpId = req.headers['mcp-session-id'];
-          if (existingMcpId && this.isAuthenticatedSession(existingMcpId)) {
-            const isReInit = this.transportMap.has(existingMcpId);
-            if (isReInit) {
-              const old = this.transportMap.get(existingMcpId);
-              this.transportMap.delete(existingMcpId);
-              this.serverMap?.delete(existingMcpId);
-              old.close().catch(() => {});
-            }
-            const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => existingMcpId, enableJsonResponse: true });
-            const server = this.isStaticSessionId(existingMcpId) ? this.buildStaticMcpServer(existingMcpId) : this.buildMcpServer(existingMcpId);
-            await server.connect(transport);
-            transport.onclose = () => { server.close().catch(() => {}); this.transportMap?.delete(existingMcpId); this.serverMap?.delete(existingMcpId); };
-            this.transportMap.set(existingMcpId, transport);
-            if (!this.serverMap) this.serverMap = new Map();
-            this.serverMap.set(existingMcpId, server);
-            await transport.handleRequest(req, res, body);
-            return;
-          }
-          const anonKey = `anon_${crypto.randomBytes(8).toString('hex')}`;
-          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => anonKey, enableJsonResponse: true });
-          const server = this.buildUnauthMcpServer(this.getBaseUrl(req));
-          await server.connect(transport);
-          transport.onclose = () => {
-            server.close().catch(() => {});
-            this.transportMap?.delete(anonKey);
-          };
-          this.transportMap.set(anonKey, transport);
-          setTimeout(() => { this.transportMap?.delete(anonKey); }, 5 * 60 * 1000);
-          await transport.handleRequest(req, res, body);
-          return;
-        }
-
-        // Non-initialize POST without session
-        const msg = !sessionId
-          ? 'No sessionId provided. Visit /login to authenticate.'
-          : 'Session not authenticated. Visit /login to complete authentication.';
-        return this.sendMcpError(req, res, 401, msg, `${this.getBaseUrl(req)}/login`);
+      if (!req.headers['mcp-session-id']) {
+        req.headers['mcp-session-id'] = sessionId;
+        req.rawHeaders.push('mcp-session-id', sessionId);
       }
 
-      // DELETE or other methods
-      res.status(405).end();
+      await this.transportMap.get(sessionId).handleRequest(req, res, req.body);
+      return;
 
     } catch (error) {
       console.error('Streamable HTTP Connection Error:', error);

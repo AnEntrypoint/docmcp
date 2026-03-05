@@ -230,5 +230,19 @@ export const GMAIL_TOOLS = [
       },
       required: ['message_id']
     }
+  },
+  {
+    name: 'gmail_bulk_modify_labels',
+    description: 'bulk add or remove labels from emails matching a Gmail query',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Gmail query to match messages for bulk processing' },
+        add_labels: { type: 'array', items: { type: 'string' }, description: 'label ids to add to each matched message' },
+        remove_labels: { type: 'array', items: { type: 'string' }, description: 'label ids to remove from each matched message' },
+        max_results: { type: 'number', description: 'maximum matched messages to process (default 2000)', default: 2000 }
+      },
+      required: ['query']
+    }
   }
 ];

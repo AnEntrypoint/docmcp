@@ -423,6 +423,16 @@ export async function handleGmailToolCall(name, args, auth) {
       const result = await gmail.modifyLabels(auth, args.message_id, args.add_labels || [], args.remove_labels || []);
       return { content: [{ type: 'text', text: `Modified labels for email ${result.id}` }] };
     }
+    case 'gmail_bulk_modify_labels': {
+      const result = await gmail.bulkModifyLabelsByQuery(
+        auth,
+        args.query,
+        args.add_labels || [],
+        args.remove_labels || [],
+        args.max_results || 2000
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
     default:
       return null;
   }

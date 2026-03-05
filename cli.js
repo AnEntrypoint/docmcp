@@ -137,7 +137,8 @@ Commands:
   gmail send                Send email (--to, --subject, --body, --cc, --bcc)
   gmail delete <message-id> Permanently delete email
   gmail trash <message-id>  Move email to trash
-  gmail modify-labels <message-id> Modify labels (--add-labels, --remove-labels)`);
+  gmail modify-labels <message-id> Modify labels (--add-labels, --remove-labels)
+  gmail bulk-modify-labels  Bulk modify labels (--query, --add-labels, --remove-labels, --max-results)`);
     return;
   }
 
@@ -973,6 +974,19 @@ Commands:
       const removeLabels = opts['remove-labels'] ? parseJson(opts['remove-labels']) : [];
       const result = await gmail.modifyLabels(auth, messageId, addLabels, removeLabels);
       console.log(`Modified labels for email ${result.id}`);
+      return;
+    }
+
+    if (sub === 'bulk-modify-labels') {
+      if (!opts.query) {
+        console.error('Error: --query required');
+        process.exit(1);
+      }
+      const addLabels = opts['add-labels'] ? parseJson(opts['add-labels']) : [];
+      const removeLabels = opts['remove-labels'] ? parseJson(opts['remove-labels']) : [];
+      const maxResults = parseInt(opts['max-results'] || '2000', 10);
+      const result = await gmail.bulkModifyLabelsByQuery(auth, opts.query, addLabels, removeLabels, maxResults);
+      console.log(JSON.stringify(result, null, 2));
       return;
     }
 

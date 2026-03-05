@@ -50,7 +50,14 @@ function getCorsOrigin(host, port) {
   return `http://${host}:${port}`;
 }
 
-const SESSION_FILE = process.env.SESSION_FILE || '/data/sessions.json';
+const SESSION_FILE = process.env.SESSION_FILE || (() => {
+  try {
+    fs.mkdirSync('/data', { recursive: true });
+    return '/data/sessions.json';
+  } catch (e) {
+    return path.join(path.dirname(fileURLToPath(import.meta.url)), 'sessions.json');
+  }
+})();
 
 class AuthenticatedHTTPServer {
   constructor(options = {}) {
@@ -83,6 +90,8 @@ class AuthenticatedHTTPServer {
 
   saveSessions() {
     try {
+      const dir = path.dirname(SESSION_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const data = {};
       for (const [id, session] of this.sessionMap.entries()) {
         data[id] = session;
@@ -278,7 +287,7 @@ class AuthenticatedHTTPServer {
 
         const auth = await this.getUserAuth(sessionId);
         if (!auth) {
-          throw new Error('Authentication required. Please login first.');
+          throw new Error('Session expired or not found. Please re-authenticate at https://docmcp.acc.l-inc.co.za/login');
         }
 
         const docsResult = await handleDocsToolCall(name, args, auth);
@@ -344,15 +353,24 @@ class AuthenticatedHTTPServer {
       return null;
     }
 
+    if (!session.tokens) {
+      console.warn(`[auth] Session ${sessionId} has no tokens - likely wiped by deploy`);
+      return null;
+    }
+
     // Reuse existing auth client
     if (this.userAuthMap.has(sessionId)) {
       return this.userAuthMap.get(sessionId);
     }
 
+    if (!this.credentials) {
+      console.warn(`[auth] Cannot reconstruct auth client for ${sessionId} - credentials not loaded yet`);
+      return null;
+    }
+
     // Create new auth client with user's tokens
     const oAuth2Client = this.createOAuth2Client();
     oAuth2Client.setCredentials(session.tokens);
-    
     this.userAuthMap.set(sessionId, oAuth2Client);
     return oAuth2Client;
   }

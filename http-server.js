@@ -168,7 +168,6 @@ class AuthenticatedHTTPServer {
       // Keep streamable MCP responses proxy-safe and decode-safe.
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('X-Accel-Buffering', 'no');
-      res.setHeader('Content-Encoding', 'identity');
       next();
     });
 
@@ -1200,19 +1199,6 @@ class AuthenticatedHTTPServer {
 
   async handleStreamableHttpConnection(req, res) {
     const sessionId = req.sessionId;
-
-    const acceptIdx = req.rawHeaders.findIndex((h, i) => i % 2 === 0 && h.toLowerCase() === 'accept');
-    if (acceptIdx !== -1) {
-      const cur = req.rawHeaders[acceptIdx + 1];
-      const needsJSON = !cur.includes('application/json');
-      const needsSSE = !cur.includes('text/event-stream');
-      if (needsJSON || needsSSE) {
-        const parts = [needsJSON && 'application/json', needsSSE && 'text/event-stream'].filter(Boolean).join(', ');
-        req.rawHeaders[acceptIdx + 1] = `${cur}, ${parts}`;
-      }
-    } else {
-      req.rawHeaders.push('Accept', 'application/json, text/event-stream');
-    }
 
     try {
       if (!this.serverMap) this.serverMap = new Map();

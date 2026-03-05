@@ -17,7 +17,7 @@ export {
   deleteText,
   insertTable,
   batchUpdate
-} from './docs-edit-wrapper.js';
+} from './docs-edit.js';
 
 export {
   formatDocument

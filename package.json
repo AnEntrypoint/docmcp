@@ -45,7 +45,7 @@
     "scripts.js",
     "sheets.js",
     "sheets-core.js",
-    "sheets-edit.js",
+
     "sheets-format.js",
     "sheets-structure.js",
     "sheets-tabs.js",

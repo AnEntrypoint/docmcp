@@ -211,7 +211,7 @@ class AuthenticatedHTTPServer {
         quick_start: {
           browser_users: 'GET /login - Authenticate and automatically connect to /mcp',
           api_clients: 'POST /auth/token with Google OAuth code, then connect to /mcp with sessionId',
-          chatgpt: '1) Visit /login to authenticate with Google, 2) Copy your sessionId from the success page, 3) Add MCP connector at /mcp with Bearer token authentication using your sessionId'
+          chatgpt: '1) Enable Developer Mode in ChatGPT, 2) Add app using /mcp, 3) Complete OAuth when prompted'
         },
         activeSessions: this.sessionMap.size,
         activeConnections: this.sseStreams.size
@@ -585,7 +585,7 @@ class AuthenticatedHTTPServer {
             <div class="container">
                 <div class="logo">📄</div>
                 <h1 class="title">docmcp</h1>
-                <p class="subtitle">Connect your Google Workspace account to use powerful document processing tools</p>
+                <p class="subtitle">Connect Google Workspace, then add this server to ChatGPT as an MCP app.</p>
                 
                 <a href="${authUrl}" class="google-login-button">
                     <span class="google-icon">🔐</span>
@@ -595,18 +595,17 @@ class AuthenticatedHTTPServer {
                 <div class="session-info">
                     <p><strong>Session ID:</strong> <code>${sessionId}</code></p>
                     <p style="margin-top: 10px; font-size: 12px; color: #999;">
-                        You will be redirected to Google's login page
+                        You will be redirected to Google sign-in. After approval, return here for exact MCP setup steps.
                     </p>
                 </div>
                 
                 <div class="features">
-                    <h3>Features:</h3>
+                    <h3>What happens next:</h3>
                     <ul>
-                        <li>📄 Google Docs integration</li>
-                        <li>📊 Google Sheets integration</li>
-                        <li>📧 Gmail integration</li>
-                        <li>🔄 Real-time collaboration</li>
-                        <li>⚡ 52+ powerful operations</li>
+                        <li>Sign in with Google and grant access</li>
+                        <li>Copy MCP connection details from the success page</li>
+                        <li>Add an app in ChatGPT Developer Mode using <code>/mcp</code></li>
+                        <li>Use Docs, Sheets, Gmail, and Apps Script tools</li>
                     </ul>
                 </div>
             </div>
@@ -848,37 +847,25 @@ class AuthenticatedHTTPServer {
                 </div>
 
                 <div class="steps">
-                    <h3>ChatGPT (recommended: No Auth)</h3>
-                    <p class="hint">Use the embedded-token URL so no auth config is needed.</p>
+                    <h3>ChatGPT app setup (recommended)</h3>
+                    <p class="hint">Best practice: use OAuth with the clean MCP endpoint.</p>
                     <ol>
-                        <li>Copy the <strong>MCP URL with token embedded</strong> above</li>
-                        <li>In ChatGPT, go to Settings &rarr; Connectors &rarr; Add custom connector</li>
-                        <li>Paste the URL &mdash; set Auth to <strong>None</strong></li>
-                        <li>Save and start chatting</li>
+                        <li>In ChatGPT, enable Developer Mode in <strong>Settings &rarr; Apps &amp; Connectors &rarr; Advanced settings</strong>.</li>
+                        <li>Create a new app and set MCP URL to <code>${mcpUrl}</code>.</li>
+                        <li>Choose OAuth authentication, then complete sign-in when prompted.</li>
+                        <li>After saving, refresh/reopen the app if tools were recently updated.</li>
                     </ol>
                 </div>
 
                 <hr class="divider">
 
                 <div class="steps">
-                    <h3>ChatGPT (API Key auth)</h3>
-                    <p class="hint">If your ChatGPT plan requires explicit auth config.</p>
+                    <h3>Manual token mode (advanced)</h3>
+                    <p class="hint">For clients that only support static Bearer tokens.</p>
                     <ol>
-                        <li>Connector URL: <code>${mcpUrl}</code></li>
-                        <li>Auth type: <strong>API Key</strong></li>
-                        <li>Header name: <code>Authorization</code></li>
-                        <li>API Key value: <code>Bearer ${state}</code></li>
-                    </ol>
-                </div>
-
-                <hr class="divider">
-
-                <div class="steps">
-                    <h3>Claude / Other MCP clients</h3>
-                    <p class="hint">Standard Bearer token auth.</p>
-                    <ol>
-                        <li>MCP endpoint: <code>${mcpUrl}</code></li>
-                        <li>Add header: <code>Authorization: Bearer ${state}</code></li>
+                        <li>Use MCP endpoint: <code>${mcpUrl}</code>.</li>
+                        <li>Add header: <code>Authorization: Bearer ${state}</code>.</li>
+                        <li>Or use embedded token URL: <code>${mcpTokenUrl}</code>.</li>
                     </ol>
                 </div>
 
@@ -914,9 +901,9 @@ class AuthenticatedHTTPServer {
         return res.status(400).json({
           success: false,
           error: 'Missing authorization code',
-          message: 'OAuth authorization code is required. Redirect user to /auth/login first.',
+          message: 'OAuth authorization code is required. Redirect user to /login first.',
           instructions: [
-            'Step 1: Redirect user to GET /auth/login',
+            'Step 1: Redirect user to GET /login',
             'Step 2: User authenticates with Google and receives sessionId',
             'Step 3: For programmatic access, exchange code for session using this endpoint'
           ]

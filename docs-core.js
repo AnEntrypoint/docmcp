@@ -158,7 +158,7 @@ export async function searchDrive(auth, query, type = 'all', maxResults = 20) {
 
   const mimeFilter = mimeTypes[type] || mimeTypes.all;
   const escapedQuery = query.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  const q = `${mimeFilter} and trashed=false and (name contains '${escapedQuery}' or fullText contains '${escapedQuery}')`;
+  const q = `${mimeFilter} and trashed=false and name contains '${escapedQuery}'`;
 
   const result = await drive.files.list({
     q,

@@ -165,10 +165,12 @@ class AuthenticatedHTTPServer {
         issuer: base,
         authorization_endpoint: `${base}/login`,
         token_endpoint: `${base}/oauth/token`,
+        registration_endpoint: `${base}/register`,
         response_types_supported: ['code'],
         grant_types_supported: ['authorization_code', 'refresh_token'],
         code_challenge_methods_supported: ['S256', 'plain'],
-        token_endpoint_auth_methods_supported: ['none']
+        token_endpoint_auth_methods_supported: ['none'],
+        scopes_supported: ['drive', 'documents', 'spreadsheets', 'script.projects', 'gmail.modify']
       });
     });
 
@@ -227,6 +229,9 @@ class AuthenticatedHTTPServer {
 
     // OAuth token endpoint - ChatGPT exchanges code for access_token
     this.app.post('/oauth/token', express.urlencoded({ extended: true }), express.json(), (req, res) => this.handleOAuthToken(req, res));
+
+    // Dynamic Client Registration (RFC 7591) - ChatGPT registers itself before OAuth flow
+    this.app.post('/register', express.json(), (req, res) => this.handleDynamicRegistration(req, res));
 
     // Streamable HTTP transport endpoint
     this.app.all('/mcp', sessionContextMiddleware, (req, res) => this.handleStreamableHttpConnection(req, res));
@@ -913,6 +918,23 @@ class AuthenticatedHTTPServer {
     res.json({ access_token: code, token_type: 'bearer', expires_in: 86400 * 30, refresh_token: code });
   }
 
+  handleDynamicRegistration(req, res) {
+    const { client_name, redirect_uris, grant_types, response_types, token_endpoint_auth_method } = req.body || {};
+    if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
+      return res.status(400).json({ error: 'invalid_client_metadata', error_description: 'redirect_uris is required' });
+    }
+    const clientId = crypto.randomBytes(16).toString('hex');
+    console.log('[DCR] Registered client_id=%s name=%s redirect_uris=%j', clientId, client_name, redirect_uris);
+    res.status(201).json({
+      client_id: clientId,
+      client_name: client_name || 'mcp-client',
+      redirect_uris,
+      grant_types: grant_types || ['authorization_code'],
+      response_types: response_types || ['code'],
+      token_endpoint_auth_method: token_endpoint_auth_method || 'none'
+    });
+  }
+
   async handleRefreshAuth(req, res) {
     try {
       const { refresh_token } = req.body;
@@ -1046,9 +1068,10 @@ sendSseError(res, status, error, loginUrl) {
         return;
       }
 
-      // Unauthenticated GET: return 401 so clients know auth is required
+      // Unauthenticated GET: return 401 with WWW-Authenticate so clients know auth is required
       if (req.method === 'GET') {
         const base = this.getBaseUrl();
+        res.set('WWW-Authenticate', `Bearer realm="${base}", resource_metadata="${base}/.well-known/oauth-protected-resource"`);
         return res.status(401).json({
           error: 'authentication_required',
           login_url: `${base}/login`,

@@ -36,7 +36,23 @@ const __dirname = path.dirname(__filename);
 
 const CONFIG_DIR = path.join(process.env.HOME || process.env.USERPROFILE, '.config', 'gcloud', 'docmcp');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
+const TOKEN_PATH = path.join(CONFIG_DIR, 'token.json');
+const ADC_PATH = path.join(process.env.HOME || process.env.USERPROFILE, '.config', 'gcloud', 'application_default_credentials.json');
 const ENABLE_DEBUG_ENDPOINTS = process.env.ENABLE_DEBUG_ENDPOINTS === '1';
+const SCOPES = [
+  'https://www.googleapis.com/auth/drive',
+  'https://www.googleapis.com/auth/documents',
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/script.projects',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.settings.basic'
+];
+
+function parseBearerToken(authorizationHeader) {
+  if (!authorizationHeader || typeof authorizationHeader !== 'string') return null;
+  const m = authorizationHeader.match(/^Bearer\s+(.+)$/i);
+  return m ? m[1].trim() : null;
+}
 
 // Auto-detect redirect URI and CORS origin from Coolify or environment
 function getRedirectUri(host, port) {
@@ -73,6 +89,14 @@ class AuthenticatedHTTPServer {
     this.oAuth2Client = null;
     this.credentials = null;
     this.userAuthMap = new Map();
+    this.staticAuthMap = new Map();
+    this.serverAuthClient = null;
+    this.staticBearerTokens = new Set(
+      String(process.env.DOCMCP_BEARER_TOKENS || process.env.DOCMCP_BEARER_TOKEN || '')
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean)
+    );
     this.sseStreams = new Map();
     this.loadSessions();
     this.reconstructAuthClients();
@@ -129,6 +153,7 @@ class AuthenticatedHTTPServer {
 
   initializeExpress() {
     this.app = express();
+    this.app.set('trust proxy', true);
     this.corsOrigin = getCorsOrigin(this.host, this.port);
     this.app.use(cors({
       origin: '*',
@@ -150,9 +175,16 @@ class AuthenticatedHTTPServer {
     // Session context middleware - extract and validate session ID
     const sessionContextMiddleware = (req, res, next) => {
       // Extract session ID from Bearer token, URL params, query params, or headers
-      let sessionId = req.params.sessionId || req.query.sessionId || req.query.token || req.headers['x-session-id'];
-      if (!sessionId && req.headers.authorization?.startsWith('Bearer ')) {
-        sessionId = req.headers.authorization.slice(7);
+      let sessionId = req.params.sessionId || req.query.sessionId || req.query.token || req.headers['x-session-id'] || req.headers['mcp-session-id'];
+      const bearerToken = parseBearerToken(req.headers.authorization);
+      if (!sessionId && bearerToken) {
+        sessionId = bearerToken;
+      }
+
+      // Static bearer token mode for non-OAuth client connectivity.
+      if (bearerToken && this.staticBearerTokens.has(bearerToken)) {
+        sessionId = this.getStaticSessionId(bearerToken);
+        req.staticBearerToken = bearerToken;
       }
 
       // Attach to request for downstream handlers
@@ -162,7 +194,7 @@ class AuthenticatedHTTPServer {
 
     // OAuth protected resource discovery (RFC 9728) - ChatGPT probes this
     this.app.get('/.well-known/oauth-protected-resource', (req, res) => {
-      const base = this.getBaseUrl() || `https://${req.hostname}`;
+      const base = this.getBaseUrl(req) || `https://${req.hostname}`;
       res.json({
         resource: base,
         authorization_servers: [`${base}/.well-known/oauth-authorization-server`],
@@ -173,7 +205,7 @@ class AuthenticatedHTTPServer {
 
     // OAuth authorization server metadata (RFC 8414) - for clients that follow discovery
     this.app.get('/.well-known/oauth-authorization-server', (req, res) => {
-      const base = this.getBaseUrl() || `https://${req.hostname}`;
+      const base = this.getBaseUrl(req) || `https://${req.hostname}`;
       res.json({
         issuer: base,
         authorization_endpoint: `${base}/login`,
@@ -255,7 +287,7 @@ class AuthenticatedHTTPServer {
       if (!sessionId || !this.sessionMap.has(sessionId) || this.sessionMap.get(sessionId)?.status !== 'authenticated') {
         return res.status(401).json({ error: 'Not authenticated. Visit /login first.' });
       }
-      const base = getCorsOrigin(req.get('host'), this.port);
+      const base = this.getBaseUrl(req) || getCorsOrigin(req.get('host'), this.port);
       res.json({ token: sessionId, mcp_url: `${base}/mcp`, mcp_url_with_token: `${base}/mcp?token=${sessionId}` });
     });
 
@@ -417,26 +449,60 @@ class AuthenticatedHTTPServer {
     return oAuth2Client;
   }
 
+  getStaticSessionId(bearerToken) {
+    const digest = crypto.createHash('sha256').update(bearerToken).digest('hex').slice(0, 16);
+    return `static_${digest}`;
+  }
+
+  isStaticSessionId(sessionId) {
+    return typeof sessionId === 'string' && sessionId.startsWith('static_');
+  }
+
+  isAuthenticatedSession(sessionId) {
+    if (!sessionId) return false;
+    if (this.isStaticSessionId(sessionId)) return true;
+    return this.sessionMap.get(sessionId)?.status === 'authenticated';
+  }
+
+  async getServerAuth() {
+    if (this.serverAuthClient) return this.serverAuthClient;
+
+    const useAdc = process.env.DOCMCP_USE_ADC === '1' || process.env.GOOGLE_APPLICATION_CREDENTIALS || fs.existsSync(ADC_PATH);
+    if (useAdc) {
+      const auth = new google.auth.GoogleAuth({ scopes: SCOPES });
+      this.serverAuthClient = await auth.getClient();
+      return this.serverAuthClient;
+    }
+
+    if (!fs.existsSync(TOKEN_PATH)) {
+      throw new Error('No server auth available. Configure ADC or token.json.');
+    }
+
+    const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+    const cfg = fs.existsSync(CONFIG_PATH) ? JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) : {};
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || cfg?.client_id || tokens.client_id;
+    const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || cfg?.client_secret || tokens.client_secret;
+    if (!clientId || !clientSecret) {
+      throw new Error('token.json exists but OAuth client credentials are missing.');
+    }
+
+    const client = new OAuth2Client(clientId, clientSecret);
+    client.setCredentials(tokens);
+    this.serverAuthClient = client;
+    return this.serverAuthClient;
+  }
+
   async handleLogin(req, res) {
     try {
       await this.loadCredentials();
       this.oAuth2Client = this.createOAuth2Client();
-
-      const scopes = [
-        'https://www.googleapis.com/auth/drive',
-        'https://www.googleapis.com/auth/documents',
-        'https://www.googleapis.com/auth/spreadsheets',
-        'https://www.googleapis.com/auth/script.projects',
-        'https://www.googleapis.com/auth/gmail.modify',
-        'https://www.googleapis.com/auth/gmail.settings.basic'
-      ];
 
       const sessionId = crypto.randomBytes(16).toString('hex');
       const state = sessionId;
 
       const authUrl = this.oAuth2Client.generateAuthUrl({
         access_type: 'offline',
-        scope: scopes,
+        scope: SCOPES,
         state: state,
         prompt: 'consent'
       });
@@ -1098,9 +1164,18 @@ sendSseError(res, status, error, loginUrl) {
     res.end();
   }
 
-  getBaseUrl() {
+  getBaseUrl(req = null) {
+    if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL;
     if (process.env.COOLIFY_URL) return process.env.COOLIFY_URL;
     if (process.env.COOLIFY_FQDN) return `https://${process.env.COOLIFY_FQDN}`;
+    if (req) {
+      const fProto = (req.headers['x-forwarded-proto'] || '').toString().split(',')[0].trim();
+      const fHost = (req.headers['x-forwarded-host'] || '').toString().split(',')[0].trim();
+      if (fProto && fHost) return `${fProto}://${fHost}`;
+      const proto = req.protocol || 'http';
+      const host = req.get('host');
+      if (host) return `${proto}://${host}`;
+    }
     return '';
   }
 
@@ -1124,14 +1199,15 @@ sendSseError(res, status, error, loginUrl) {
       if (!this.serverMap) this.serverMap = new Map();
       if (!this.transportMap) this.transportMap = new Map();
 
-      // If Bearer token provided but session not found/valid, return 401 so client re-authenticates
-      if (sessionId && !this.sessionMap.has(sessionId)) {
+      // If Bearer token provided but session not found/valid, return 401 so client re-authenticates.
+      // Static bearer sessions are validated separately from the OAuth session map.
+      if (sessionId && !this.isStaticSessionId(sessionId) && !this.sessionMap.has(sessionId)) {
         res.status(401).set('WWW-Authenticate', 'Bearer error="invalid_token" error_description="Session expired or not found. Re-authenticate."').json({ error: 'invalid_token', error_description: 'Session expired or not found. Please re-authenticate.' });
         return;
       }
 
       // Authenticated session: reuse transport (unless re-initialize)
-      if (sessionId && this.sessionMap.get(sessionId)?.status === 'authenticated') {
+      if (this.isAuthenticatedSession(sessionId)) {
         // GET without mcp-session-id is a probe/health check - return 200
         if (req.method === 'GET' && !req.headers['mcp-session-id']) {
           return res.status(200).json({ status: 'ready', protocol: 'mcp', transport: 'streamable-http' });
@@ -1145,7 +1221,7 @@ sendSseError(res, status, error, loginUrl) {
         }
         if (!this.transportMap.has(sessionId)) {
           const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId, enableJsonResponse: true });
-          const server = this.buildMcpServer(sessionId);
+          const server = this.isStaticSessionId(sessionId) ? this.buildStaticMcpServer(sessionId) : this.buildMcpServer(sessionId);
           await server.connect(transport);
           transport.onclose = () => {
             server.close().catch(() => {});
@@ -1169,7 +1245,7 @@ sendSseError(res, status, error, loginUrl) {
       const body0 = req.body || {};
       if (mcpSessionId && this.transportMap.has(mcpSessionId) && body0.method !== 'initialize') {
         // If Bearer token provides an authenticated session, upgrade: close anon transport, route to auth
-        if (sessionId && this.sessionMap.get(sessionId)?.status === 'authenticated') {
+        if (this.isAuthenticatedSession(sessionId)) {
           const anon = this.transportMap.get(mcpSessionId);
           this.transportMap.delete(mcpSessionId);
           anon.close().catch(() => {});
@@ -1182,10 +1258,10 @@ sendSseError(res, status, error, loginUrl) {
       }
 
       // Re-check authenticated session after possible anon upgrade
-      if (sessionId && this.sessionMap.get(sessionId)?.status === 'authenticated') {
+      if (this.isAuthenticatedSession(sessionId)) {
         if (!this.transportMap.has(sessionId)) {
           const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId, enableJsonResponse: true });
-          const server = this.buildMcpServer(sessionId);
+          const server = this.isStaticSessionId(sessionId) ? this.buildStaticMcpServer(sessionId) : this.buildMcpServer(sessionId);
           await server.connect(transport);
           transport.onclose = () => { server.close().catch(() => {}); this.transportMap?.delete(sessionId); this.serverMap?.delete(sessionId); };
           this.transportMap.set(sessionId, transport);
@@ -1198,7 +1274,7 @@ sendSseError(res, status, error, loginUrl) {
 
       // Unauthenticated GET: return 401 with WWW-Authenticate so clients know auth is required
       if (req.method === 'GET') {
-        const base = this.getBaseUrl();
+        const base = this.getBaseUrl(req);
         res.set('WWW-Authenticate', `Bearer realm="${base}", resource_metadata="${base}/.well-known/oauth-protected-resource"`);
         return res.status(401).json({
           error: 'authentication_required',
@@ -1216,7 +1292,7 @@ sendSseError(res, status, error, loginUrl) {
         if (isInit) {
           // If mcp-session-id header refers to an authenticated session, reuse it
           const existingMcpId = req.headers['mcp-session-id'];
-          if (existingMcpId && this.sessionMap.get(existingMcpId)?.status === 'authenticated') {
+          if (existingMcpId && this.isAuthenticatedSession(existingMcpId)) {
             const isReInit = this.transportMap.has(existingMcpId);
             if (isReInit) {
               const old = this.transportMap.get(existingMcpId);
@@ -1225,7 +1301,7 @@ sendSseError(res, status, error, loginUrl) {
               old.close().catch(() => {});
             }
             const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => existingMcpId, enableJsonResponse: true });
-            const server = this.buildMcpServer(existingMcpId);
+            const server = this.isStaticSessionId(existingMcpId) ? this.buildStaticMcpServer(existingMcpId) : this.buildMcpServer(existingMcpId);
             await server.connect(transport);
             transport.onclose = () => { server.close().catch(() => {}); this.transportMap?.delete(existingMcpId); this.serverMap?.delete(existingMcpId); };
             this.transportMap.set(existingMcpId, transport);
@@ -1236,7 +1312,7 @@ sendSseError(res, status, error, loginUrl) {
           }
           const anonKey = `anon_${crypto.randomBytes(8).toString('hex')}`;
           const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => anonKey, enableJsonResponse: true });
-          const server = this.buildUnauthMcpServer(this.getBaseUrl());
+          const server = this.buildUnauthMcpServer(this.getBaseUrl(req));
           await server.connect(transport);
           transport.onclose = () => {
             server.close().catch(() => {});
@@ -1252,7 +1328,7 @@ sendSseError(res, status, error, loginUrl) {
         const msg = !sessionId
           ? 'No sessionId provided. Visit /login to authenticate.'
           : 'Session not authenticated. Visit /login to complete authentication.';
-        return this.sendSseError(res, 401, msg, `${this.getBaseUrl()}/login`);
+        return this.sendSseError(res, 401, msg, `${this.getBaseUrl(req)}/login`);
       }
 
       // DELETE or other methods
@@ -1362,6 +1438,60 @@ sendSseError(res, status, error, loginUrl) {
     return server;
   }
 
+  buildStaticMcpServer(sessionId) {
+    const TOOLS = enrichToolsForApps([
+      ...DOCS_TOOLS,
+      ...SECTION_TOOLS,
+      ...MEDIA_TOOLS,
+      ...DRIVE_TOOLS,
+      ...SHEETS_TOOLS,
+      ...SCRIPTS_TOOLS,
+      ...GMAIL_TOOLS
+    ]);
+    const server = new Server({ name: 'docmcp', version: '1.0.0' }, { capabilities: { tools: {}, resources: {} } });
+
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+    server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: listStaticResources() }));
+    server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: listResourceTemplates() }));
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      try {
+        const auth = await this.getServerAuth();
+        return await readResource(auth, request.params.uri);
+      } catch (err) {
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: 'text/plain',
+              text: `Error reading resource: ${err.message}`
+            }
+          ]
+        };
+      }
+    });
+
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name, arguments: args } = request.params;
+      try {
+        const auth = await this.getServerAuth();
+        const docsResult = await handleDocsToolCall(name, args, auth);
+        if (docsResult) return docsResult;
+
+        const sheetsResult = await handleSheetsToolCall(name, args, auth);
+        if (sheetsResult) return sheetsResult;
+
+        const gmailResult = await handleGmailToolCall(name, args, auth);
+        if (gmailResult) return gmailResult;
+
+        throw new Error(`Unknown tool: ${name}`);
+      } catch (err) {
+        return { content: [{ type: 'text', text: `Error calling ${name}: ${err.message}` }], isError: true };
+      }
+    });
+
+    return server;
+  }
+
   async start() {
     return new Promise((resolve, reject) => {
       this.httpServer = http.createServer(this.app);
@@ -1436,6 +1566,9 @@ if (process.argv[1] && process.argv[1].endsWith('http-server.js')) {
       console.log('  GOOGLE_OAUTH_CLIENT_SECRET Google OAuth client secret');
       console.log('  REDIRECT_URI               Redirect URI for OAuth');
       console.log('  CORS_ORIGIN                Allowed CORS origins');
+      console.log('  PUBLIC_BASE_URL            External HTTPS base URL behind proxy (recommended)');
+      console.log('  DOCMCP_BEARER_TOKENS       Comma-separated static bearer tokens for non-OAuth clients');
+      console.log('  DOCMCP_USE_ADC             Use Application Default Credentials for static bearer mode');
       process.exit(0);
     }
   }

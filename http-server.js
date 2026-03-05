@@ -1110,7 +1110,7 @@ sendSseError(res, status, error, loginUrl) {
           old.close().catch(() => {});
         }
         if (!this.transportMap.has(sessionId)) {
-          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId });
+          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId, enableJsonResponse: true });
           const server = this.buildMcpServer(sessionId);
           await server.connect(transport);
           transport.onclose = () => {
@@ -1150,7 +1150,7 @@ sendSseError(res, status, error, loginUrl) {
       // Re-check authenticated session after possible anon upgrade
       if (sessionId && this.sessionMap.get(sessionId)?.status === 'authenticated') {
         if (!this.transportMap.has(sessionId)) {
-          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId });
+          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId, enableJsonResponse: true });
           const server = this.buildMcpServer(sessionId);
           await server.connect(transport);
           transport.onclose = () => { server.close().catch(() => {}); this.transportMap?.delete(sessionId); this.serverMap?.delete(sessionId); };
@@ -1190,7 +1190,7 @@ sendSseError(res, status, error, loginUrl) {
               this.serverMap?.delete(existingMcpId);
               old.close().catch(() => {});
             }
-            const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => existingMcpId });
+            const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => existingMcpId, enableJsonResponse: true });
             const server = this.buildMcpServer(existingMcpId);
             await server.connect(transport);
             transport.onclose = () => { server.close().catch(() => {}); this.transportMap?.delete(existingMcpId); this.serverMap?.delete(existingMcpId); };
@@ -1201,7 +1201,7 @@ sendSseError(res, status, error, loginUrl) {
             return;
           }
           const anonKey = `anon_${crypto.randomBytes(8).toString('hex')}`;
-          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => anonKey });
+          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => anonKey, enableJsonResponse: true });
           const server = this.buildUnauthMcpServer(this.getBaseUrl());
           await server.connect(transport);
           transport.onclose = () => {

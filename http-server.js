@@ -15,7 +15,10 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
   ListToolsRequestSchema,
-  CallToolRequestSchema
+  CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ReadResourceRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import { OAuth2Client } from 'google-auth-library';
 import { DOCS_TOOLS, SECTION_TOOLS, MEDIA_TOOLS, DRIVE_TOOLS } from './tools-docs.js';
@@ -23,6 +26,7 @@ import { SHEETS_TOOLS, SCRIPTS_TOOLS } from './tools-sheets.js';
 import { GMAIL_TOOLS } from './tools-gmail.js';
 import { handleDocsToolCall, handleSheetsToolCall, handleGmailToolCall } from './handlers.js';
 import { enrichToolsForApps } from './apps-metadata.js';
+import { listStaticResources, listResourceTemplates, readPublicResource, readResource } from './mcp-resources.js';
 
 // AsyncLocalStorage for session context
 const sessionContext = new AsyncLocalStorage();
@@ -268,7 +272,7 @@ class AuthenticatedHTTPServer {
   initializeMcpServer() {
     this.server = new Server(
       { name: 'docmcp', version: '1.0.0' },
-      { capabilities: { tools: {} } }
+      { capabilities: { tools: {}, resources: {} } }
     );
 
     const TOOLS = enrichToolsForApps([
@@ -315,6 +319,34 @@ class AuthenticatedHTTPServer {
         return {
           content: [{ type: 'text', text: `Error calling ${name}: ${err.message}` }],
           isError: true
+        };
+      }
+    });
+
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+      resources: listStaticResources()
+    }));
+
+    this.server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
+      resourceTemplates: listResourceTemplates()
+    }));
+
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      try {
+        const sessionId = sessionContext.getStore();
+        if (!sessionId) throw new Error('Session not found. Please authenticate first.');
+        const auth = await this.getUserAuth(sessionId);
+        if (!auth) throw new Error('Session expired or not found. Please re-authenticate.');
+        return await readResource(auth, request.params.uri);
+      } catch (err) {
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: 'text/plain',
+              text: `Error reading resource: ${err.message}`
+            }
+          ]
         };
       }
     });
@@ -1242,10 +1274,27 @@ sendSseError(res, status, error, loginUrl) {
       ...SCRIPTS_TOOLS,
       ...GMAIL_TOOLS
     ]);
-    const server = new Server({ name: 'docmcp', version: '1.0.0' }, { capabilities: { tools: {} } });
+    const server = new Server({ name: 'docmcp', version: '1.0.0' }, { capabilities: { tools: {}, resources: {} } });
     const loginUrl = `${baseUrl}/login`;
 
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+    server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: listStaticResources() }));
+    server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: listResourceTemplates() }));
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      try {
+        return readPublicResource(request.params.uri);
+      } catch (err) {
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: 'text/plain',
+              text: `Authentication required. Please visit ${loginUrl} to sign in. (${err.message})`
+            }
+          ]
+        };
+      }
+    });
 
     server.setRequestHandler(CallToolRequestSchema, async () => ({
       content: [{ type: 'text', text: `Authentication required. Please visit ${loginUrl} to sign in.` }],
@@ -1265,9 +1314,28 @@ sendSseError(res, status, error, loginUrl) {
       ...SCRIPTS_TOOLS,
       ...GMAIL_TOOLS
     ]);
-    const server = new Server({ name: 'docmcp', version: '1.0.0' }, { capabilities: { tools: {} } });
+    const server = new Server({ name: 'docmcp', version: '1.0.0' }, { capabilities: { tools: {}, resources: {} } });
 
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+    server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: listStaticResources() }));
+    server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: listResourceTemplates() }));
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      try {
+        const auth = await this.getUserAuth(sessionId);
+        if (!auth) throw new Error('Authentication required. Please login first.');
+        return await readResource(auth, request.params.uri);
+      } catch (err) {
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: 'text/plain',
+              text: `Error reading resource: ${err.message}`
+            }
+          ]
+        };
+      }
+    });
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;

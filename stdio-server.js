@@ -3,7 +3,10 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   ListToolsRequestSchema,
-  CallToolRequestSchema
+  CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ReadResourceRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
@@ -15,6 +18,7 @@ import { SHEETS_TOOLS, SCRIPTS_TOOLS } from './tools-sheets.js';
 import { GMAIL_TOOLS } from './tools-gmail.js';
 import { handleDocsToolCall, handleSheetsToolCall, handleGmailToolCall } from './handlers.js';
 import { enrichToolsForApps } from './apps-metadata.js';
+import { listStaticResources, listResourceTemplates, readResource } from './mcp-resources.js';
 
 const TOKEN_FILE = path.join(os.homedir(), '.config', 'gcloud', 'docmcp', 'token.json');
 const ADC_FILE = path.join(os.homedir(), '.config', 'gcloud', 'application_default_credentials.json');
@@ -100,7 +104,7 @@ export async function handleToolCall(name, args) {
 
 const server = new Server(
   { name: 'docmcp', version: '1.0.0' },
-  { capabilities: { tools: {} } }
+  { capabilities: { tools: {}, resources: {} } }
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -115,6 +119,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return {
       content: [{ type: 'text', text: `Error: ${err.message}` }],
       isError: true
+    };
+  }
+});
+
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  return { resources: listStaticResources() };
+});
+
+server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
+  return { resourceTemplates: listResourceTemplates() };
+});
+
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  try {
+    const auth = await getAuth();
+    return await readResource(auth, request.params.uri);
+  } catch (err) {
+    return {
+      contents: [
+        {
+          uri: request.params.uri,
+          mimeType: 'text/plain',
+          text: `Error reading resource: ${err.message}`
+        }
+      ]
     };
   }
 });

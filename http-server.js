@@ -1229,7 +1229,7 @@ class AuthenticatedHTTPServer {
         return this.sendMcpError(
           req,
           res,
-          401,
+          200,
           'Authentication required. Use OAuth /login or provide Authorization: Bearer <token>.',
           `${base}/login`
         );

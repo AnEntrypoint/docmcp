@@ -1,220 +1,14 @@
+import {
+  ensureScriptsTab,
+  getScriptsFromTab,
+  verifyScriptExists,
+  verifyAndHealScripts,
+  removeScriptFromTab,
+  removeMultipleScriptsFromTab,
+  addScriptToTab,
+  resolveScriptEntry
+} from './scripts-helpers.js';
 import { google } from 'googleapis';
-
-const SCRIPTS_TAB = '_scripts';
-const SCRIPTS_HEADERS = ['Script Name', 'Script ID', 'Script URL', 'Created', 'Verified'];
-
-async function ensureScriptsTab(auth, sheetId) {
-  const sheets = google.sheets({ version: 'v4', auth });
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-  const existingTab = spreadsheet.data.sheets.find(s => s.properties.title === SCRIPTS_TAB);
-  
-  if (existingTab) return existingTab.properties.sheetId;
-
-  const response = await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        addSheet: {
-          properties: {
-            title: SCRIPTS_TAB,
-            hidden: true
-          }
-        }
-      }]
-    }
-  });
-
-  const newSheetId = response.data.replies[0].addSheet.properties.sheetId;
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: `${SCRIPTS_TAB}!A1:E1`,
-    valueInputOption: 'RAW',
-    requestBody: { values: [SCRIPTS_HEADERS] }
-  });
-
-  return newSheetId;
-}
-
-async function getScriptsFromTab(auth, sheetId) {
-  const sheets = google.sheets({ version: 'v4', auth });
-  
-  try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range: `${SCRIPTS_TAB}!A2:E`
-    });
-    
-    const rows = response.data.values || [];
-    return rows.map((row, idx) => ({
-      index: idx,
-      name: row[0] || '',
-      scriptId: row[1] || '',
-      url: row[2] || '',
-      created: row[3] || '',
-      verified: row[4] || ''
-    }));
-  } catch (e) {
-    if (e.message?.includes('Unable to parse range')) return [];
-    throw e;
-  }
-}
-
-async function verifyScriptExists(auth, scriptId) {
-  const script = google.script({ version: 'v1', auth });
-  try {
-    await script.projects.get({ scriptId });
-    return true;
-  } catch (e) {
-    if (e.code === 404 || e.message?.includes('not found') || e.message?.includes('404')) {
-      return false;
-    }
-    throw e;
-  }
-}
-
-async function verifyAndHealScripts(auth, sheetId, scripts) {
-  if (scripts.length === 0) return { scripts: [], healed: false, removed: [] };
-  
-  const validScripts = [];
-  const invalidScriptIds = [];
-  
-  for (const script of scripts) {
-    const exists = await verifyScriptExists(auth, script.scriptId);
-    if (exists) {
-      validScripts.push(script);
-    } else {
-      invalidScriptIds.push(script.scriptId);
-    }
-  }
-  
-  if (invalidScriptIds.length > 0) {
-    await removeMultipleScriptsFromTab(auth, sheetId, invalidScriptIds);
-  }
-  
-  return {
-    scripts: validScripts,
-    healed: invalidScriptIds.length > 0,
-    removed: invalidScriptIds
-  };
-}
-
-async function removeMultipleScriptsFromTab(auth, sheetId, scriptIds) {
-  if (scriptIds.length === 0) return;
-  
-  const sheets = google.sheets({ version: 'v4', auth });
-  const scripts = await getScriptsFromTab(auth, sheetId);
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-  const scriptsTab = spreadsheet.data.sheets.find(s => s.properties.title === SCRIPTS_TAB);
-  
-  if (!scriptsTab) return;
-  
-  const indicesToRemove = scripts
-    .filter(s => scriptIds.includes(s.scriptId))
-    .map(s => s.index)
-    .sort((a, b) => b - a);
-  
-  if (indicesToRemove.length === 0) return;
-  
-  const requests = indicesToRemove.map(idx => ({
-    deleteDimension: {
-      range: {
-        sheetId: scriptsTab.properties.sheetId,
-        dimension: 'ROWS',
-        startIndex: idx + 1,
-        endIndex: idx + 2
-      }
-    }
-  }));
-  
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: { requests }
-  });
-}
-
-async function addScriptToTab(auth, sheetId, name, scriptId, url) {
-  await ensureScriptsTab(auth, sheetId);
-  const sheets = google.sheets({ version: 'v4', auth });
-  const created = new Date().toISOString();
-  const verified = created;
-  
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: sheetId,
-    range: `${SCRIPTS_TAB}!A:E`,
-    valueInputOption: 'RAW',
-    requestBody: { values: [[name, scriptId, url, created, verified]] }
-  });
-}
-
-async function removeScriptFromTab(auth, sheetId, scriptId) {
-  const sheets = google.sheets({ version: 'v4', auth });
-  const scripts = await getScriptsFromTab(auth, sheetId);
-  const scriptIndex = scripts.findIndex(s => s.scriptId === scriptId);
-  
-  if (scriptIndex === -1) return false;
-
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-  const scriptsTab = spreadsheet.data.sheets.find(s => s.properties.title === SCRIPTS_TAB);
-  
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        deleteDimension: {
-          range: {
-            sheetId: scriptsTab.properties.sheetId,
-            dimension: 'ROWS',
-            startIndex: scriptIndex + 1,
-            endIndex: scriptIndex + 2
-          }
-        }
-      }]
-    }
-  });
-  
-  return true;
-}
-
-async function updateScriptVerified(auth, sheetId, scriptIndex) {
-  const sheets = google.sheets({ version: 'v4', auth });
-  const verified = new Date().toISOString();
-  
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: `${SCRIPTS_TAB}!E${scriptIndex + 2}`,
-    valueInputOption: 'RAW',
-    requestBody: { values: [[verified]] }
-  });
-}
-
-async function resolveScriptEntry(auth, sheetId, scriptIdentifier, options = {}) {
-  const { heal = true, verify = true } = options;
-  
-  let scripts = await getScriptsFromTab(auth, sheetId);
-  let scriptEntry;
-
-  if (typeof scriptIdentifier === 'number') {
-    scriptEntry = scripts[scriptIdentifier];
-    if (!scriptEntry) throw new Error(`Script index ${scriptIdentifier} not found.`);
-  } else {
-    scriptEntry = scripts.find(s => s.name === scriptIdentifier || s.scriptId === scriptIdentifier);
-    if (!scriptEntry) throw new Error(`Script "${scriptIdentifier}" not found in attached scripts.`);
-  }
-
-  if (verify) {
-    const exists = await verifyScriptExists(auth, scriptEntry.scriptId);
-    if (!exists) {
-      if (heal) {
-        await removeScriptFromTab(auth, sheetId, scriptEntry.scriptId);
-      }
-      throw new Error(`Script "${scriptEntry.name}" (${scriptEntry.scriptId}) no longer exists. ${heal ? 'Tracking entry removed.' : 'Run listScripts to sync.'}`);
-    }
-    await updateScriptVerified(auth, sheetId, scriptEntry.index);
-  }
-
-  return scriptEntry;
-}
 
 export async function createScript(auth, sheetId, scriptName) {
   const script = google.script({ version: 'v1', auth });
@@ -241,28 +35,20 @@ export async function createScript(auth, sheetId, scriptName) {
 
 export async function listScripts(auth, sheetId, options = {}) {
   const { heal = true } = options;
-  
   await ensureScriptsTab(auth, sheetId);
   const scripts = await getScriptsFromTab(auth, sheetId);
-  
   if (heal && scripts.length > 0) {
     const result = await verifyAndHealScripts(auth, sheetId, scripts);
     if (result.healed) {
       return {
-        scripts: result.scripts.map(s => ({
-          index: result.scripts.indexOf(s),
-          name: s.name,
-          scriptId: s.scriptId,
-          url: s.url,
-          created: s.created
+        scripts: result.scripts.map((s, i) => ({
+          index: i, name: s.name, scriptId: s.scriptId, url: s.url, created: s.created
         })),
-        healed: true,
-        removedCount: result.removed.length
+        healed: true, removedCount: result.removed.length
       };
     }
     return { scripts: result.scripts, healed: false };
   }
-  
   return { scripts, healed: false };
 }
 

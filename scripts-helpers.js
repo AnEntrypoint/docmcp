@@ -115,3 +115,24 @@ export async function addScriptToTab(auth, sheetId, scriptName, scriptId, url = 
     requestBody: { values }
   });
 }
+
+export async function resolveScriptEntry(auth, sheetId, scriptIdentifier, options = {}) {
+  const { verify = true } = options;
+  let scripts = await getScriptsFromTab(auth, sheetId);
+  let scriptEntry;
+  if (typeof scriptIdentifier === 'number') {
+    scriptEntry = scripts[scriptIdentifier];
+    if (!scriptEntry) throw new Error(`Script index ${scriptIdentifier} not found.`);
+  } else {
+    scriptEntry = scripts.find(s => s.name === scriptIdentifier || s.scriptId === scriptIdentifier);
+    if (!scriptEntry) throw new Error(`Script "${scriptIdentifier}" not found in attached scripts.`);
+  }
+  if (verify) {
+    const exists = await verifyScriptExists(auth, scriptEntry.scriptId);
+    if (!exists) {
+      await removeScriptFromTab(auth, sheetId, scriptEntry.scriptId);
+      throw new Error(`Script "${scriptEntry.name}" no longer exists. Tracking entry removed.`);
+    }
+  }
+  return scriptEntry;
+}

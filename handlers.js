@@ -4,6 +4,7 @@ import * as sections from './docs-sections.js';
 import * as media from './docs-media.js';
 import * as scripts from './scripts.js';
 import * as gmail from './gmail.js';
+import { formatDocsResponse, formatJsonResponse, buildLabelConfig } from './handlers-utils.js';
 
 export async function handleDocsToolCall(name, args, auth) {
   switch (name) {
@@ -95,18 +96,12 @@ export async function handleDocsToolCall(name, args, auth) {
     }
     case 'docs_format': {
       const formatting = {};
-      if (args.bold !== undefined) formatting.bold = args.bold;
-      if (args.italic !== undefined) formatting.italic = args.italic;
-      if (args.underline !== undefined) formatting.underline = args.underline;
-      if (args.strikethrough !== undefined) formatting.strikethrough = args.strikethrough;
-      if (args.font_size) formatting.fontSize = args.font_size;
-      if (args.font_family) formatting.fontFamily = args.font_family;
-      if (args.foreground_color) formatting.foregroundColor = args.foreground_color;
-      if (args.background_color) formatting.backgroundColor = args.background_color;
-      if (args.heading) formatting.heading = args.heading;
-      if (args.alignment) formatting.alignment = args.alignment;
+      const mapConfig = { bold: 'bold', italic: 'italic', underline: 'underline', strikethrough: 'strikethrough',
+        font_size: 'fontSize', font_family: 'fontFamily', foreground_color: 'foregroundColor',
+        background_color: 'backgroundColor', heading: 'heading', alignment: 'alignment' };
+      Object.entries(mapConfig).forEach(([k, v]) => { if (k in args && args[k] !== undefined) formatting[v] = args[k]; });
       const result = await docs.formatDocument(auth, args.doc_id, args.search_text, formatting);
-      return { content: [{ type: 'text', text: `Formatted ${result.formattedOccurrences} occurrence(s)` }] };
+      return formatDocsResponse(`Formatted ${result.formattedOccurrences} occurrence(s)`);
     }
     case 'docs_insert_table': {
       const result = await docs.insertTable(auth, args.doc_id, args.rows, args.cols, args.position || 'end');
@@ -251,19 +246,12 @@ export async function handleSheetsToolCall(name, args, auth) {
     }
     case 'sheets_format': {
       const formatting = {};
-      if (args.background_color) formatting.backgroundColor = args.background_color;
-      if (args.text_color) formatting.textColor = args.text_color;
-      if (args.bold !== undefined) formatting.bold = args.bold;
-      if (args.italic !== undefined) formatting.italic = args.italic;
-      if (args.font_size) formatting.fontSize = args.font_size;
-      if (args.font_family) formatting.fontFamily = args.font_family;
-      if (args.horizontal_alignment) formatting.horizontalAlignment = args.horizontal_alignment;
-      if (args.vertical_alignment) formatting.verticalAlignment = args.vertical_alignment;
-      if (args.wrap_strategy) formatting.wrapStrategy = args.wrap_strategy;
-      if (args.number_format) formatting.numberFormat = args.number_format;
-      if (args.borders) formatting.borders = args.borders;
+      const mapConfig = { background_color: 'backgroundColor', text_color: 'textColor', bold: 'bold', italic: 'italic',
+        font_size: 'fontSize', font_family: 'fontFamily', horizontal_alignment: 'horizontalAlignment',
+        vertical_alignment: 'verticalAlignment', wrap_strategy: 'wrapStrategy', number_format: 'numberFormat', borders: 'borders' };
+      Object.entries(mapConfig).forEach(([k, v]) => { if (k in args && args[k] !== undefined) formatting[v] = args[k]; });
       const result = await sheets.formatRange(auth, args.sheet_id, args.range, formatting);
-      return { content: [{ type: 'text', text: `Formatted range ${result.formatted}` }] };
+      return formatDocsResponse(`Formatted range ${result.formatted}`);
     }
     case 'sheets_merge': {
       const action = args.action || 'merge';
@@ -350,31 +338,14 @@ export async function handleGmailToolCall(name, args, auth) {
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
     case 'gmail_create_label': {
-      const requestBody = {
-        name: args.name
-      };
-      if (args.label_list_visibility) requestBody.labelListVisibility = args.label_list_visibility;
-      if (args.message_list_visibility) requestBody.messageListVisibility = args.message_list_visibility;
-      if (args.color) {
-        requestBody.color = {};
-        if (args.color.text_color) requestBody.color.textColor = args.color.text_color;
-        if (args.color.background_color) requestBody.color.backgroundColor = args.color.background_color;
-      }
-      const result = await gmail.createLabel(auth, requestBody);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      const result = await gmail.createLabel(auth, buildLabelConfig(args));
+      return formatJsonResponse(result);
     }
     case 'gmail_update_label': {
-      const requestBody = {};
-      if (args.name) requestBody.name = args.name;
-      if (args.label_list_visibility) requestBody.labelListVisibility = args.label_list_visibility;
-      if (args.message_list_visibility) requestBody.messageListVisibility = args.message_list_visibility;
-      if (args.color) {
-        requestBody.color = {};
-        if (args.color.text_color) requestBody.color.textColor = args.color.text_color;
-        if (args.color.background_color) requestBody.color.backgroundColor = args.color.background_color;
-      }
-      const result = await gmail.updateLabel(auth, args.label_id, requestBody);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      const config = buildLabelConfig(args);
+      delete config.name; if (args.name) config.name = args.name;
+      const result = await gmail.updateLabel(auth, args.label_id, config);
+      return formatJsonResponse(result);
     }
     case 'gmail_delete_label': {
       const result = await gmail.deleteLabel(auth, args.label_id);

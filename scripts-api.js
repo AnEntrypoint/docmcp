@@ -1,12 +1,6 @@
 import { google } from 'googleapis';
 import { removeScriptFromTab } from './scripts-helpers.js';
-
-function countMatches(source, text) {
-  const count = (source.match(new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
-  if (count === 0) throw new Error(`old_text not found in file.`);
-  if (count > 1) return count;
-  return 1;
-}
+import { countMatches } from './text-utils.js';
 
 async function getScriptContent(auth, scriptId) {
   const script = google.script({ version: 'v1', auth });

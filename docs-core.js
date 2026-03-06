@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { countOccurrences, getAllIndices } from './text-utils.js';
 
 export function extractText(content) {
   let text = '';
@@ -21,25 +22,7 @@ export function extractText(content) {
   return text;
 }
 
-export function countOccurrences(text, search) {
-  let count = 0;
-  let pos = 0;
-  while ((pos = text.indexOf(search, pos)) !== -1) {
-    count++;
-    pos += search.length;
-  }
-  return count;
-}
-
-export function getAllIndices(text, search) {
-  const indices = [];
-  let pos = 0;
-  while ((pos = text.indexOf(search, pos)) !== -1) {
-    indices.push(pos);
-    pos += search.length;
-  }
-  return indices;
-}
+export { countOccurrences, getAllIndices } from './text-utils.js';
 
 export function parseColor(colorStr) {
   if (!colorStr) return null;

@@ -1,105 +1,84 @@
-import { google } from 'googleapis';
-import { readDocument, getAllIndices, parseColor } from './docs-core.js';
+import { parseApiResponse, validateParams } from './api-call-wrapper.js';
+import { withErrorHandling, handleApiError } from './error-handling.js';
 
-export async function formatDocument(auth, docId, searchText, formatting) {
-  const text = await readDocument(auth, docId);
-  const indices = getAllIndices(text, searchText);
-
-  if (indices.length === 0) {
-    throw new Error(
-      `Text not found in document. ` +
-      `Make sure the text exists exactly as specified.`
-    );
+export async function docsFormat(docId, searchText, formatOptions) {
+  validateParams({ docId, searchText }, ['docId', 'searchText']);
+  try {
+    const response = await callTool('docs_format', {
+      doc_id: docId,
+      search_text: searchText,
+      ...formatOptions
+    });
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'docsFormat');
+    throw error;
   }
+}
 
-  const docs = google.docs({ version: 'v1', auth });
-  const requests = [];
-
-  for (const idx of indices) {
-    const startIndex = idx + 1;
-    const endIndex = idx + searchText.length + 1;
-
-    const textStyle = {};
-
-    if (formatting.bold !== undefined) textStyle.bold = formatting.bold;
-    if (formatting.italic !== undefined) textStyle.italic = formatting.italic;
-    if (formatting.underline !== undefined) textStyle.underline = formatting.underline;
-    if (formatting.strikethrough !== undefined) textStyle.strikethrough = formatting.strikethrough;
-    if (formatting.fontSize) {
-      textStyle.fontSize = { magnitude: formatting.fontSize, unit: 'PT' };
-    }
-    if (formatting.fontFamily) {
-      textStyle.weightedFontFamily = { fontFamily: formatting.fontFamily };
-    }
-    if (formatting.foregroundColor) {
-      const color = parseColor(formatting.foregroundColor);
-      if (color) textStyle.foregroundColor = { color: { rgbColor: color } };
-    }
-    if (formatting.backgroundColor) {
-      const color = parseColor(formatting.backgroundColor);
-      if (color) textStyle.backgroundColor = { color: { rgbColor: color } };
-    }
-
-    const fields = Object.keys(textStyle).join(',');
-
-    if (fields) {
-      requests.push({
-        updateTextStyle: {
-          range: { startIndex, endIndex },
-          textStyle,
-          fields
-        }
-      });
-    }
-
-    if (formatting.heading) {
-      const headingMap = {
-        'TITLE': 'TITLE',
-        'SUBTITLE': 'SUBTITLE',
-        'HEADING_1': 'HEADING_1',
-        'HEADING_2': 'HEADING_2',
-        'HEADING_3': 'HEADING_3',
-        'HEADING_4': 'HEADING_4',
-        'HEADING_5': 'HEADING_5',
-        'HEADING_6': 'HEADING_6',
-        'NORMAL_TEXT': 'NORMAL_TEXT'
-      };
-      const namedStyle = headingMap[formatting.heading.toUpperCase()] || 'NORMAL_TEXT';
-      requests.push({
-        updateParagraphStyle: {
-          range: { startIndex, endIndex },
-          paragraphStyle: { namedStyleType: namedStyle },
-          fields: 'namedStyleType'
-        }
-      });
-    }
-
-    if (formatting.alignment) {
-      const alignMap = {
-        'LEFT': 'START',
-        'CENTER': 'CENTER',
-        'RIGHT': 'END',
-        'JUSTIFY': 'JUSTIFIED'
-      };
-      const alignment = alignMap[formatting.alignment.toUpperCase()] || 'START';
-      requests.push({
-        updateParagraphStyle: {
-          range: { startIndex, endIndex },
-          paragraphStyle: { alignment },
-          fields: 'alignment'
-        }
-      });
-    }
+export async function docsInsertTable(docId, rows, cols, position = 'end') {
+  validateParams({ docId, rows, cols }, ['docId', 'rows', 'cols']);
+  try {
+    const response = await callTool('docs_insert_table', {
+      doc_id: docId,
+      rows,
+      cols,
+      position
+    });
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'docsInsertTable');
+    throw error;
   }
+}
 
-  if (requests.length === 0) {
-    throw new Error('No formatting options specified.');
+export async function docsInsertImage(docId, imageUrl, width = null, height = null, position = 'end') {
+  validateParams({ docId, imageUrl }, ['docId', 'imageUrl']);
+  try {
+    const response = await callTool('docs_image', {
+      doc_id: docId,
+      action: 'insert',
+      image_url: imageUrl,
+      width,
+      height,
+      position
+    });
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'docsInsertImage');
+    throw error;
   }
+}
 
-  await docs.documents.batchUpdate({
-    documentId: docId,
-    requestBody: { requests }
-  });
+export async function docsDeleteImage(docId, imageIndex) {
+  validateParams({ docId, imageIndex }, ['docId', 'imageIndex']);
+  try {
+    const response = await callTool('docs_image', {
+      doc_id: docId,
+      action: 'delete',
+      image_index: imageIndex
+    });
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'docsDeleteImage');
+    throw error;
+  }
+}
 
-  return { formattedOccurrences: indices.length };
+export async function docsReplaceImage(docId, imageIndex, imageUrl, width = null, height = null) {
+  validateParams({ docId, imageIndex, imageUrl }, ['docId', 'imageIndex', 'imageUrl']);
+  try {
+    const response = await callTool('docs_image', {
+      doc_id: docId,
+      action: 'replace',
+      image_index: imageIndex,
+      image_url: imageUrl,
+      width,
+      height
+    });
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'docsReplaceImage');
+    throw error;
+  }
 }

@@ -1,151 +1,78 @@
-import { getSheetsClient, getDriveClient } from './google-clients.js';
+import { parseApiResponse, validateParams } from './api-call-wrapper.js';
+import { withErrorHandling, handleApiError } from './error-handling.js';
 
-export async function getSpreadsheetInfo(auth, sheetId) {
-  const sheets = getSheetsClient(auth);
-  const drive = getDriveClient(auth);
-
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-
-  const sheetTabs = spreadsheet.data.sheets.map(s => ({
-    sheetId: s.properties.sheetId,
-    title: s.properties.title,
-    index: s.properties.index,
-    rowCount: s.properties.gridProperties.rowCount,
-    columnCount: s.properties.gridProperties.columnCount,
-    frozen: {
-      rows: s.properties.gridProperties.frozenRowCount || 0,
-      columns: s.properties.gridProperties.frozenColumnCount || 0
-    }
-  }));
-
-  const info = {
-    id: spreadsheet.data.spreadsheetId,
-    title: spreadsheet.data.properties.title,
-    sheets: sheetTabs
-  };
-
+export async function sheetsTabAdd(sheetId, title) {
+  validateParams({ sheetId, title }, ['sheetId', 'title']);
   try {
-    const file = await drive.files.get({
-      fileId: sheetId,
-      fields: 'id,name,createdTime,modifiedTime,owners'
+    const response = await callTool('sheets_tab', { 
+      sheetId, 
+      action: 'add',
+      title 
     });
-    info.createdTime = file.data.createdTime;
-    info.modifiedTime = file.data.modifiedTime;
-    info.owners = file.data.owners?.map(o => ({ name: o.displayName, email: o.emailAddress })) || [];
-  } catch (e) {
-    info.note = 'Drive metadata unavailable (requires drive scope)';
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'sheetsTabAdd');
+    throw error;
   }
-
-  return info;
 }
 
-export async function listSpreadsheets(auth, maxResults = 20, query = null) {
-  const drive = google.drive({ version: 'v3', auth });
-
-  let q = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false";
-  if (query) {
-    q += ` and name contains '${query.replace(/'/g, "\\'")}'`;
+export async function sheetsTabRename(sheetId, sheetName, title) {
+  validateParams({ sheetId, sheetName, title }, ['sheetId', 'sheetName', 'title']);
+  try {
+    const response = await callTool('sheets_tab', { 
+      sheetId, 
+      action: 'rename',
+      sheet_name: sheetName,
+      title
+    });
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'sheetsTabRename');
+    throw error;
   }
-
-  const result = await drive.files.list({
-    q,
-    pageSize: maxResults,
-    orderBy: 'modifiedTime desc',
-    fields: 'files(id,name,createdTime,modifiedTime)'
-  });
-
-  return result.data.files || [];
 }
 
-export async function addSheetTab(auth, sheetId, title) {
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  const result = await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        addSheet: {
-          properties: { title }
-        }
-      }]
-    }
-  });
-
-  const newSheet = result.data.replies[0].addSheet;
-  return {
-    sheetId: newSheet.properties.sheetId,
-    title: newSheet.properties.title
-  };
+export async function sheetsTabDelete(sheetId, sheetName) {
+  validateParams({ sheetId, sheetName }, ['sheetId', 'sheetName']);
+  try {
+    const response = await callTool('sheets_tab', { 
+      sheetId, 
+      action: 'delete',
+      sheet_name: sheetName
+    });
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'sheetsTabDelete');
+    throw error;
+  }
 }
 
-export async function deleteSheetTab(auth, sheetId, sheetName) {
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-  const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
-  if (!sheet) throw new Error(`Sheet tab not found: ${sheetName}`);
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        deleteSheet: { sheetId: sheet.properties.sheetId }
-      }]
-    }
-  });
-
-  return { deleted: sheetName };
+export async function sheetsFreezeRows(sheetId, sheetName, rows) {
+  validateParams({ sheetId, sheetName, rows }, ['sheetId', 'sheetName', 'rows']);
+  try {
+    const response = await callTool('sheets_freeze', { 
+      sheetId, 
+      sheet_name: sheetName,
+      rows
+    });
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'sheetsFreezeRows');
+    throw error;
+  }
 }
 
-export async function renameSheetTab(auth, sheetId, oldName, newName) {
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-  const sheet = spreadsheet.data.sheets.find(s => s.properties.title === oldName);
-  if (!sheet) throw new Error(`Sheet tab not found: ${oldName}`);
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        updateSheetProperties: {
-          properties: {
-            sheetId: sheet.properties.sheetId,
-            title: newName
-          },
-          fields: 'title'
-        }
-      }]
-    }
-  });
-
-  return { oldName, newName };
-}
-
-export async function setFrozen(auth, sheetId, sheetName, rows = 0, columns = 0) {
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-  const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
-  if (!sheet) throw new Error(`Sheet tab not found: ${sheetName}`);
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      requests: [{
-        updateSheetProperties: {
-          properties: {
-            sheetId: sheet.properties.sheetId,
-            gridProperties: {
-              frozenRowCount: rows,
-              frozenColumnCount: columns
-            }
-          },
-          fields: 'gridProperties.frozenRowCount,gridProperties.frozenColumnCount'
-        }
-      }]
-    }
-  });
-
-  return { frozenRows: rows, frozenColumns: columns };
+export async function sheetsFreezeCols(sheetId, sheetName, columns) {
+  validateParams({ sheetId, sheetName, columns }, ['sheetId', 'sheetName', 'columns']);
+  try {
+    const response = await callTool('sheets_freeze', { 
+      sheetId, 
+      sheet_name: sheetName,
+      columns
+    });
+    return parseApiResponse(response).data;
+  } catch (error) {
+    handleApiError(error, 'sheetsFreezeCols');
+    throw error;
+  }
 }

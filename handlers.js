@@ -135,6 +135,10 @@ export async function handleDocsToolCall(name, args, auth) {
 
 export async function handleSheetsToolCall(name, args, auth) {
   switch (name) {
+    case 'scripts_search': {
+      const result = await scripts.searchScripts(auth, args.query, args.max_results || 20);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
     case 'scripts_create': {
       const result = await scripts.createScript(auth, args.sheet_id, args.script_name);
       return { content: [{ type: 'text', text: `Created script "${result.name}" with ID: ${result.scriptId}\nURL: ${result.url}` }] };

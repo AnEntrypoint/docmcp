@@ -435,3 +435,33 @@ export async function syncScripts(auth, sheetId) {
     removedIds: result.removed
   };
 }
+
+export async function searchScripts(auth, query, maxResults = 20) {
+  const drive = google.drive({ version: 'v3', auth });
+  const escaped = String(query || '').replace(/'/g, "\\'");
+  const q = [
+    "mimeType='application/vnd.google-apps.script'",
+    "trashed=false",
+    escaped ? `(name contains '${escaped}' or fullText contains '${escaped}')` : ''
+  ].filter(Boolean).join(' and ');
+
+  const res = await drive.files.list({
+    q,
+    pageSize: Math.max(1, Math.min(Number(maxResults) || 20, 100)),
+    fields: 'files(id,name,webViewLink,createdTime,modifiedTime,owners(displayName,emailAddress))',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true
+  });
+
+  return {
+    scripts: (res.data.files || []).map((f) => ({
+      scriptId: f.id,
+      name: f.name,
+      url: f.webViewLink || `https://script.google.com/d/${f.id}/edit`,
+      created: f.createdTime,
+      modified: f.modifiedTime,
+      owners: (f.owners || []).map((o) => ({ name: o.displayName, email: o.emailAddress }))
+    })),
+    count: (res.data.files || []).length
+  };
+}

@@ -1,5 +1,17 @@
 export const SCRIPTS_TOOLS = [
   {
+    name: 'scripts_search',
+    description: 'search Google Apps Script projects by name or content',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'search query for script name/content' },
+        max_results: { type: 'number', description: 'max results default 20', default: 20 }
+      },
+      required: ['query']
+    }
+  },
+  {
     name: 'scripts_create',
     description: 'create apps script project attached to spreadsheet',
     inputSchema: {

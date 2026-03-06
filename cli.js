@@ -119,6 +119,7 @@ Commands:
   sheets batch <id>         Batch operations (--operations)
 
   scripts create <id>       Create script project (--script-name)
+  scripts search <query>    Search Google Apps Script projects (--max-results)
   scripts list <id>         List attached scripts
   scripts read <id>         Read script content (--script)
   scripts write <id>        Write/edit script file (--script, --file-name, --content/--mode edit)
@@ -757,6 +758,19 @@ Commands:
   if (cmd === 'scripts') {
     const sub = args[1];
     const auth = getAuth();
+
+    if (sub === 'search') {
+      const query = args[2];
+      if (!query) {
+        console.error('Error: query required');
+        process.exit(1);
+      }
+      const opts = parseArgs(args.slice(3));
+      const result = await scripts.searchScripts(auth, query, parseInt(opts['max-results'] || '20', 10));
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
     const sheetId = args[2];
 
     if (!sheetId) {

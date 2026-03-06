@@ -324,27 +324,6 @@ export async function handleSheetsToolCall(name, args, auth) {
 }
 
 export async function handleGmailToolCall(name, args, auth) {
-  const mapCriteria = (criteria = {}) => {
-    const out = {};
-    if (criteria.from) out.from = criteria.from;
-    if (criteria.to) out.to = criteria.to;
-    if (criteria.subject) out.subject = criteria.subject;
-    if (criteria.query) out.query = criteria.query;
-    if (criteria.negated_query) out.negatedQuery = criteria.negated_query;
-    if (criteria.has_attachment !== undefined) out.hasAttachment = criteria.has_attachment;
-    if (criteria.size !== undefined) out.size = criteria.size;
-    if (criteria.size_comparison) out.sizeComparison = criteria.size_comparison;
-    return out;
-  };
-
-  const mapAction = (action = {}) => {
-    const out = {};
-    if (action.add_label_ids) out.addLabelIds = action.add_label_ids;
-    if (action.remove_label_ids) out.removeLabelIds = action.remove_label_ids;
-    if (action.forward) out.forward = action.forward;
-    return out;
-  };
-
   switch (name) {
     case 'gmail_list': {
       const result = await gmail.listEmails(auth, args.max_results || 20, args.query || null, args.label_ids || null);
@@ -410,8 +389,8 @@ export async function handleGmailToolCall(name, args, auth) {
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
     case 'gmail_create_filter': {
-      const criteria = mapCriteria(args.criteria || {});
-      const action = mapAction(args.action || {});
+      const criteria = gmail.normalizeFilterCriteriaInput(args.criteria || {});
+      const action = gmail.normalizeFilterActionInput(args.action || {});
       const result = await gmail.createFilter(auth, criteria, action);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
@@ -420,8 +399,8 @@ export async function handleGmailToolCall(name, args, auth) {
       return { content: [{ type: 'text', text: `Deleted filter ${result.deleted}` }] };
     }
     case 'gmail_replace_filter': {
-      const criteria = mapCriteria(args.criteria || {});
-      const action = mapAction(args.action || {});
+      const criteria = gmail.normalizeFilterCriteriaInput(args.criteria || {});
+      const action = gmail.normalizeFilterActionInput(args.action || {});
       const result = await gmail.replaceFilter(auth, args.filter_id, criteria, action);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }

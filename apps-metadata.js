@@ -53,13 +53,29 @@ function toTitle(name) {
 }
 
 function toUseThisWhen(description) {
-  const clean = String(description || '').trim().replace(/\.$/, '');
-  if (!clean) return 'Use this when you need to run this operation.';
-  if (clean.toLowerCase().startsWith('use this when')) return clean.endsWith('.') ? clean : `${clean}.`;
-  return `Use this when you need to ${clean}.`;
+  const clean = String(description || '').trim().replace(/\s+/g, ' ');
+  if (!clean) return '';
+  return clean.length > 72 ? `${clean.slice(0, 72).trimEnd()}...` : clean;
+}
+
+function compactSchemaDescriptions(input) {
+  if (!input || typeof input !== 'object') return input;
+  if (Array.isArray(input)) return input.map(compactSchemaDescriptions);
+
+  const out = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (k === 'description' && typeof v === 'string') {
+      const compact = v.trim().replace(/\s+/g, ' ');
+      out[k] = compact.length > 48 ? `${compact.slice(0, 48).trimEnd()}...` : compact;
+      continue;
+    }
+    out[k] = compactSchemaDescriptions(v);
+  }
+  return out;
 }
 
 export function enrichToolsForApps(tools) {
+  const compactMode = process.env.DOCMCP_COMPACT_TOOL_METADATA !== '0';
   return tools.map((tool) => {
     const readOnly = hasPrefix(tool.name, READ_ONLY_PREFIXES);
     const destructive = hasPrefix(tool.name, DESTRUCTIVE_PREFIXES);
@@ -67,7 +83,8 @@ export function enrichToolsForApps(tools) {
     return {
       ...tool,
       title: tool.title || toTitle(tool.name),
-      description: toUseThisWhen(tool.description),
+      description: compactMode ? toUseThisWhen(tool.description) : tool.description,
+      inputSchema: compactMode ? compactSchemaDescriptions(tool.inputSchema) : tool.inputSchema,
       annotations: {
         readOnlyHint: readOnly,
         destructiveHint: destructive,
@@ -83,4 +100,3 @@ export function enrichToolsForApps(tools) {
     };
   });
 }
-

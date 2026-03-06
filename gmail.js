@@ -239,10 +239,12 @@ export async function getFilter(auth, filterId) {
 
 export async function createFilter(auth, criteria, action) {
   const gmail = getGmail(auth);
+  const normalizedCriteria = normalizeFilterCriteriaInput(criteria || {});
+  const normalizedAction = normalizeFilterActionInput(action || {});
 
   const res = await gmail.users.settings.filters.create({
     userId: 'me',
-    requestBody: { criteria, action }
+    requestBody: { criteria: normalizedCriteria, action: normalizedAction }
   });
 
   return res.data;
@@ -261,8 +263,8 @@ export async function deleteFilter(auth, filterId) {
 
 export async function replaceFilter(auth, filterId, criteriaPatch = {}, actionPatch = {}) {
   const current = await getFilter(auth, filterId);
-  const nextCriteria = { ...(current.criteria || {}), ...(criteriaPatch || {}) };
-  const nextAction = { ...(current.action || {}), ...(actionPatch || {}) };
+  const nextCriteria = { ...(current.criteria || {}), ...normalizeFilterCriteriaInput(criteriaPatch || {}) };
+  const nextAction = { ...(current.action || {}), ...normalizeFilterActionInput(actionPatch || {}) };
   const created = await createFilter(auth, nextCriteria, nextAction);
 
   let deleted = false;
@@ -286,6 +288,32 @@ export async function replaceFilter(auth, filterId, criteriaPatch = {}, actionPa
     deletedOld: deleted,
     filter: created
   };
+}
+
+export function normalizeFilterCriteriaInput(criteria = {}) {
+  const out = {};
+  if (criteria.from) out.from = criteria.from;
+  if (criteria.to) out.to = criteria.to;
+  if (criteria.subject) out.subject = criteria.subject;
+  if (criteria.query) out.query = criteria.query;
+  if (criteria.negated_query) out.negatedQuery = criteria.negated_query;
+  if (criteria.negatedQuery) out.negatedQuery = criteria.negatedQuery;
+  if (criteria.has_attachment !== undefined) out.hasAttachment = criteria.has_attachment;
+  if (criteria.hasAttachment !== undefined) out.hasAttachment = criteria.hasAttachment;
+  if (criteria.size !== undefined) out.size = criteria.size;
+  if (criteria.size_comparison) out.sizeComparison = criteria.size_comparison;
+  if (criteria.sizeComparison) out.sizeComparison = criteria.sizeComparison;
+  return out;
+}
+
+export function normalizeFilterActionInput(action = {}) {
+  const out = {};
+  if (action.add_label_ids) out.addLabelIds = action.add_label_ids;
+  if (action.addLabelIds) out.addLabelIds = action.addLabelIds;
+  if (action.remove_label_ids) out.removeLabelIds = action.remove_label_ids;
+  if (action.removeLabelIds) out.removeLabelIds = action.removeLabelIds;
+  if (action.forward) out.forward = action.forward;
+  return out;
 }
 
 export async function sendEmail(auth, to, subject, body, cc = null, bcc = null) {

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createClient, createOAuthClient, createTokenClient, createADCClient } from './sdk.js';
 import fs from 'fs';
 import path from 'path';
 import { OAuth2Client } from 'google-auth-library';

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Google Docs/Sheets MCP Server with Agent Skills",
   "type": "module",
-  "main": "http-server.js",
+  "main": "index.js",
   "bin": {
     "docmcp": "cli.js",
     "docmcp-mcp": "stdio-server.js",
@@ -46,7 +46,6 @@
     "scripts.js",
     "sheets.js",
     "sheets-core.js",
-
     "sheets-format.js",
     "sheets-structure.js",
     "sheets-tabs.js",

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createClient, createOAuthClient, createTokenClient, createADCClient } from './sdk.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {

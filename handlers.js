@@ -1,11 +1,9 @@
 import * as docs from './docs.js';
-import * as sheets from './sheets.js';
-import * as scripts from './scripts.js';
-import * as gmail from './gmail.js';
-import { formatDocsResponse, formatJsonResponse, buildLabelConfig } from './handlers-utils.js';
-import { handleDocsImageActions, handleDocsSectionActions } from './handlers-dispatch.js';
 import * as sections from './docs-sections.js';
 import * as media from './docs-media.js';
+import { handleDocsImageActions, handleDocsSectionActions } from './handlers-dispatch.js';
+import { handleSheetsToolCall } from './handlers-sheets.js';
+import { handleGmailToolCall } from './handlers-gmail.js';
 
 export async function handleDocsToolCall(name, args, auth) {
   switch (name) {

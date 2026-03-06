@@ -4,12 +4,13 @@ import * as media from './docs-media.js';
 import { handleDocsImageActions, handleDocsSectionActions } from './handlers-dispatch.js';
 import { handleSheetsToolCall } from './handlers-sheets.js';
 import { handleGmailToolCall } from './handlers-gmail.js';
+import { formatDocsResponse, formatJsonResponse } from './handlers-utils.js';
 
 export async function handleDocsToolCall(name, args, auth) {
   switch (name) {
     case 'docs_get_sections': {
       const result = await sections.getSections(auth, args.doc_id);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      return formatJsonResponse(result);
     }
     case 'docs_section': {
       return handleDocsSectionActions(name, args, auth);
@@ -35,7 +36,7 @@ export async function handleDocsToolCall(name, args, auth) {
     }
     case 'docs_list_images': {
       const result = await media.listImages(auth, args.doc_id);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      return formatJsonResponse(result);
     }
     case 'docs_delete_image': {
       const result = await media.deleteImage(auth, args.doc_id, args.image_index);
@@ -64,11 +65,11 @@ export async function handleDocsToolCall(name, args, auth) {
     }
     case 'docs_get_info': {
       const info = await docs.getDocumentInfo(auth, args.doc_id);
-      return { content: [{ type: 'text', text: JSON.stringify(info, null, 2) }] };
+      return formatJsonResponse(info);
     }
     case 'docs_list': {
       const docsList = await docs.listDocuments(auth, args.max_results || 20, args.query || null);
-      return { content: [{ type: 'text', text: JSON.stringify(docsList, null, 2) }] };
+      return formatJsonResponse(docsList);
     }
     case 'docs_format': {
       const formatting = {};
@@ -89,7 +90,7 @@ export async function handleDocsToolCall(name, args, auth) {
     }
     case 'docs_get_structure': {
       const structure = await docs.getDocumentStructure(auth, args.doc_id);
-      return { content: [{ type: 'text', text: JSON.stringify(structure, null, 2) }] };
+      return formatJsonResponse(structure);
     }
     case 'docs_batch': {
       const result = await docs.batchUpdate(auth, args.doc_id, args.operations);
@@ -97,7 +98,7 @@ export async function handleDocsToolCall(name, args, auth) {
     }
     case 'drive_search': {
       const results = await docs.searchDrive(auth, args.query, args.type || 'all', args.max_results || 20);
-      return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
+      return formatJsonResponse(results);
     }
     default:
       return null;

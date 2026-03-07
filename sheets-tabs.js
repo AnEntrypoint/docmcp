@@ -1,3 +1,4 @@
+import { google } from 'googleapis';
 import { getSheetsClient, getDriveClient } from './google-clients.js';
 
 export async function getSpreadsheetInfo(auth, sheetId) {
